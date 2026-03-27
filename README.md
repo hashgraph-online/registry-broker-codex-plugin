@@ -72,10 +72,10 @@ The MCP server launches from the packaged CLI:
 
 ## Environment
 
-- `REGISTRY_BROKER_API_URL`
-  Default: `https://hol.org/registry/api/v1`
+- The public broker endpoint is fixed at `https://hol.org/registry/api/v1`.
+- End users should not need to set a broker base URL in normal use.
 - `REGISTRY_BROKER_API_KEY`
-  Optional for public discovery, recommended for broker chat flows
+  Optional, but recommended for broker chat flows
 - `MCP_SERVER_NAME`
   Optional override for the MCP server display name
 - `REGISTRY_BROKER_PLUGIN_LOG_LEVEL`
@@ -101,7 +101,6 @@ pnpm test
 ## Broker-backed smoke test
 
 ```bash
-REGISTRY_BROKER_API_URL='https://your-broker.example/api/v1' \
 REGISTRY_BROKER_API_KEY='your-api-key-if-needed' \
 REGISTRY_BROKER_E2E_DISCOVERY_QUERY='search phrase that should return your target candidate' \
 REGISTRY_BROKER_E2E_DISCOVERY_EXPECT_UAID='uaid:aid:discoverable-agent' \
@@ -124,7 +123,7 @@ This smoke test is intentionally generic. It requires a broker environment plus:
 - one discoverable candidate for `registryBroker.findAgents`
 - one known-working target for `registryBroker.summonAgent` and `registryBroker.sessionHistory`
 
-Private deployment details are not documented in this public repository.
+The public path exercised here is the HOL-hosted Registry Broker endpoint. Private deployment details and internal endpoint override guidance are intentionally omitted from this public repository.
 
 ## Implementation notes
 
