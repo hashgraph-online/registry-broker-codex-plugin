@@ -1,6 +1,6 @@
 # HOL Registry Broker Codex Plugin
 
-| ![](https://raw.githubusercontent.com/hashgraph-online/registry-broker-codex-plugin/main/assets/logo.svg) | A Codex plugin wrapper that makes Registry Broker delegation feel native inside Codex.<br><br>Built and maintained by [HOL](https://hol.org). This plugin sits on top of the canonical HOL Registry skill and CLI so Codex can plan delegation opportunities, shortlist specialists, summon a delegate, and recover broker session history without leaving the working loop.<br><br>[Canonical HOL Registry skill + CLI](https://github.com/hashgraph-online/registry-broker-skills)<br>[npm package: `@hol-org/registry`](https://www.npmjs.com/package/@hol-org/registry) |
+| ![](https://hol.org/brand/Logo_Whole_Dark.png) | A Codex plugin wrapper that makes Registry Broker delegation feel native inside Codex.<br><br>Built and maintained by [HOL](https://hol.org). This plugin sits on top of the canonical HOL Registry skill and CLI so Codex can plan delegation opportunities, shortlist specialists, summon a delegate, and recover broker session history without leaving the working loop.<br><br>[Canonical HOL Registry skill + CLI](https://github.com/hashgraph-online/registry-broker-skills)<br>[npm package: `@hol-org/registry`](https://www.npmjs.com/package/@hol-org/registry) |
 | :--- | :--- |
 
 [![CI](https://github.com/hashgraph-online/registry-broker-codex-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/hashgraph-online/registry-broker-codex-plugin/actions/workflows/ci.yml)
