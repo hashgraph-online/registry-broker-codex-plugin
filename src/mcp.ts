@@ -7,6 +7,7 @@ import { RegistryBrokerService } from './broker';
 import { config } from './config';
 import {
   buildDelegateMessage,
+  type DelegateCandidate,
   inferDelegationType,
   isBrokerAuthError,
   normalizeAgenticFilter,
@@ -25,9 +26,21 @@ type ToolResult = {
 
 type SessionAuth = Record<string, unknown> | undefined;
 
+const workspaceContextSchema = z
+  .object({
+    openFiles: z.array(z.string().min(1)).optional(),
+    modifiedFiles: z.array(z.string().min(1)).optional(),
+    relatedPaths: z.array(z.string().min(1)).optional(),
+    errors: z.array(z.string().min(1)).optional(),
+    commands: z.array(z.string().min(1)).optional(),
+    languages: z.array(z.string().min(1)).optional(),
+  })
+  .optional();
+
 const searchSchema = z.object({
   query: z.string().min(1),
   task: z.string().optional(),
+  opportunityId: z.string().min(1).optional(),
   limit: z.number().int().min(1).max(10).default(5),
   registries: z.array(z.string().min(1)).optional(),
   capabilities: z.array(z.string().min(1)).optional(),
@@ -37,11 +50,28 @@ const searchSchema = z.object({
   verified: z.boolean().optional(),
   online: z.boolean().optional(),
   type: z.enum(['ai-agents', 'mcp-servers']).optional(),
+  workspace: workspaceContextSchema,
+});
+
+const planDelegationSchema = z.object({
+  task: z.string().min(1),
+  context: z.string().optional(),
+  limit: z.number().int().min(1).max(5).default(3),
+  registries: z.array(z.string().min(1)).optional(),
+  capabilities: z.array(z.string().min(1)).optional(),
+  protocols: z.array(z.string().min(1)).optional(),
+  adapters: z.array(z.string().min(1)).optional(),
+  minTrust: z.number().int().min(0).max(100).optional(),
+  verified: z.boolean().optional(),
+  online: z.boolean().optional(),
+  type: z.enum(['ai-agents', 'mcp-servers']).optional(),
+  workspace: workspaceContextSchema,
 });
 
 const summonSchema = z.object({
   task: z.string().min(1),
   query: z.string().optional(),
+  opportunityId: z.string().min(1).optional(),
   uaid: z.string().min(1).optional(),
   limit: z.number().int().min(1).max(3).default(3),
   mode: z.enum(['best-match', 'fallback', 'parallel']).default('fallback'),
@@ -55,6 +85,7 @@ const summonSchema = z.object({
   verified: z.boolean().optional(),
   online: z.boolean().optional(),
   type: z.enum(['ai-agents', 'mcp-servers']).optional(),
+  workspace: workspaceContextSchema,
 });
 
 const sessionHistorySchema = z.object({
@@ -64,6 +95,7 @@ const sessionHistorySchema = z.object({
 const emptySchema = z.object({});
 
 const instructions = [
+  'For medium or large tasks, use registryBroker.planDelegation early to discover where specialist help would actually add leverage.',
   'Use registryBroker.summonAgent for bounded subtasks where a broker specialist can add value without taking over the whole user request.',
   'Use registryBroker.findAgents when you need to inspect the shortlist, explain the ranking, or let the user choose the target agent.',
   'Prefer best-match when one strong answer is enough, fallback when resilience matters, and parallel only when comparing approaches is worth the extra latency.',
@@ -88,10 +120,101 @@ type SafeResult<T> = {
   error?: string;
 };
 
+type PlannerOpportunity = {
+  id?: string;
+  title?: string;
+  reason?: string;
+  role?: string;
+  suggestedMode?: string;
+  searchQueries?: string[];
+  candidates?: unknown[];
+};
+
+type PlannerRecommendation = {
+  action?: string;
+  confidence?: number;
+  reason?: string;
+  opportunityId?: string;
+  candidate?: unknown;
+};
+
+type PlannerSelection = {
+  opportunities: PlannerOpportunity[];
+  selectedOpportunity?: PlannerOpportunity;
+  candidates: DelegateCandidate[];
+  recommendation?: PlannerRecommendation;
+};
+
 export function createToolDefinitions(
   service: BrokerService,
-): Array<ToolDefinition<typeof searchSchema | typeof summonSchema | typeof sessionHistorySchema | typeof emptySchema>> {
+): Array<
+  ToolDefinition<
+    | typeof searchSchema
+    | typeof planDelegationSchema
+    | typeof summonSchema
+    | typeof sessionHistorySchema
+    | typeof emptySchema
+  >
+> {
   return [
+    {
+      name: 'registryBroker.planDelegation',
+      description: 'Turn a free-form task into ranked broker delegation opportunities.',
+      parameters: planDelegationSchema,
+      annotations: {
+        title: 'Registry Broker Plan Delegation',
+        readOnlyHint: true,
+      },
+      execute: async (args, context) => {
+        const requestId = context?.requestId ?? randomUUID();
+        const input = planDelegationSchema.parse(args);
+        logger.info({ requestId, tool: 'registryBroker.planDelegation' }, 'tool.invoke');
+
+        const result = await service.planDelegation({
+          task: input.task,
+          context: input.context,
+          workspace: input.workspace,
+          limit: input.limit,
+          filter: normalizeAgenticFilter({
+            registries: input.registries,
+            capabilities: input.capabilities,
+            protocols: input.protocols,
+            adapters: input.adapters,
+            minTrust: input.minTrust,
+            verified: input.verified,
+            online: input.online,
+            type: input.type,
+          }),
+        });
+
+        logger.info({ requestId, tool: 'registryBroker.planDelegation' }, 'tool.success');
+
+        const opportunityCount =
+          typeof result === 'object' &&
+          result !== null &&
+          Array.isArray((result as { opportunities?: unknown[] }).opportunities)
+            ? (result as { opportunities?: unknown[] }).opportunities!.length
+            : 0;
+        const recommendationAction =
+          typeof result === 'object' &&
+          result !== null &&
+          typeof (result as { recommendation?: { action?: unknown } }).recommendation?.action ===
+            'string'
+            ? (result as { recommendation: { action: string } }).recommendation.action
+            : undefined;
+
+        return resultWithPayload(
+          [
+            `Delegation opportunities: ${opportunityCount}`,
+            recommendationAction ? `Recommendation: ${recommendationAction}` : undefined,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          'registryBroker.planDelegation',
+          result,
+        );
+      },
+    },
     {
       name: 'registryBroker.findAgents',
       description: 'Find and rank likely broker agents or MCP servers for a task or query.',
@@ -104,54 +227,88 @@ export function createToolDefinitions(
         const requestId = context?.requestId ?? randomUUID();
         const input = searchSchema.parse(args);
         logger.info({ requestId, tool: 'registryBroker.findAgents' }, 'tool.invoke');
+        const task = input.task;
         const query = input.query;
-        const delegationType = input.type ?? inferDelegationType(`${input.task ?? ''}\n${query}`);
-        const searches = await collectSearches(service, query, input.limit, {
-          registries: input.registries,
-          capabilities: input.capabilities,
-          protocols: input.protocols,
-          adapters: input.adapters,
-          minTrust: input.minTrust,
-          verified: input.verified,
-          online: input.online,
-          type: delegationType,
-        });
-        const candidates = pickDelegateCandidates(
-          [searches.agentic.value, searches.vector.value, searches.keyword.value],
-          {
-            limit: input.limit,
-            registries: input.registries,
-            minTrust: input.minTrust,
-            verified: input.verified,
-            online: input.online,
-          },
-        ).map((candidate) => ({
-          ...candidate,
-          suggestedMessage: buildDelegateMessage(input.task ?? query, candidate),
-        }));
+        const taskText = `${task ?? ''}\n${query}`;
+        const planResult = task
+          ? await safeInvoke(() =>
+              service.planDelegation({
+                task,
+                context: query !== task ? query : undefined,
+                workspace: input.workspace,
+                limit: computePlannerLimit(input.limit),
+                filter: normalizeAgenticFilter({
+                  registries: input.registries,
+                  capabilities: input.capabilities,
+                  protocols: input.protocols,
+                  adapters: input.adapters,
+                  minTrust: input.minTrust,
+                  verified: input.verified,
+                  online: input.online,
+                  type: input.type ?? inferDelegationType(taskText),
+                }),
+              }),
+            )
+          : undefined;
+        const plannerSelection =
+          planResult?.value !== undefined
+            ? selectPlannerCandidates(planResult.value, {
+                task,
+                query,
+                opportunityId: input.opportunityId,
+              })
+            : undefined;
+        const shortlist = plannerSelection && plannerSelection.candidates.length > 0
+          ? await preferReachableCandidates(
+              service,
+              plannerSelection.candidates.map((candidate) => ({
+                ...candidate,
+                suggestedMessage: buildDelegateMessage(task ?? query, candidate),
+              })),
+              input.limit,
+              Math.min(computeRankingPoolSize(taskText, input.limit), plannerSelection.candidates.length),
+            )
+          : await findFallbackCandidates(service, query, {
+              task,
+              limit: input.limit,
+              registries: input.registries,
+              capabilities: input.capabilities,
+              protocols: input.protocols,
+              adapters: input.adapters,
+              minTrust: input.minTrust,
+              verified: input.verified,
+              online: input.online,
+              type: input.type,
+            });
         logger.info(
-          { requestId, tool: 'registryBroker.findAgents', candidates: candidates.length },
+          { requestId, tool: 'registryBroker.findAgents', candidates: shortlist.length },
           'tool.success',
         );
         return resultWithPayload(
           [
-            `Found ${candidates.length} ranked candidates for ${JSON.stringify(query)}.`,
-            candidates.length
-              ? candidates
+            `Found ${shortlist.length} ranked candidates for ${JSON.stringify(query)}.`,
+            shortlist.length
+              ? shortlist
                   .map((candidate, index) => `${index + 1}. ${candidate.label} — ${candidate.uaid}`)
                   .join('\n')
               : 'No candidates matched the broker search results.',
           ].join('\n'),
           'registryBroker.findAgents',
           {
+            strategy:
+              plannerSelection && plannerSelection.candidates.length > 0
+                ? 'broker-plan'
+                : 'search-fallback',
             query,
-            task: input.task,
-            candidates,
-            sources: {
-              agentic: searches.agentic.error ? { error: searches.agentic.error } : searches.agentic.value,
-              vector: searches.vector.error ? { error: searches.vector.error } : searches.vector.value,
-              keyword: searches.keyword.error ? { error: searches.keyword.error } : searches.keyword.value,
-            },
+            task,
+            selectedOpportunity: plannerSelection?.selectedOpportunity,
+            opportunities: plannerSelection?.opportunities,
+            candidates: shortlist,
+            planner: planResult
+              ? planResult.error
+                ? { error: planResult.error }
+                : planResult.value
+              : undefined,
           },
         );
       },
@@ -170,31 +327,60 @@ export function createToolDefinitions(
         logger.info({ requestId, tool: 'registryBroker.summonAgent' }, 'tool.invoke');
 
         const query = input.query ?? input.task;
-        const delegationType = input.type ?? inferDelegationType(`${input.task}\n${query}`);
-        const searches = input.uaid
+        const taskText = `${input.task}\n${query}`;
+        const desiredCandidateCount = input.mode === 'best-match' ? 1 : input.limit;
+        const planResult = input.uaid
           ? undefined
-          : await collectSearches(service, query, input.limit, {
-              registries: input.registries,
-              capabilities: input.capabilities,
-              protocols: input.protocols,
-              adapters: input.adapters,
-              minTrust: input.minTrust,
-              verified: input.verified,
-              online: input.online,
-              type: delegationType,
-            });
-
-        const candidates = input.uaid
+          : await safeInvoke(() =>
+              service.planDelegation({
+                task: input.task,
+                context: query !== input.task ? query : undefined,
+                workspace: input.workspace,
+                limit: computePlannerLimit(desiredCandidateCount),
+                filter: normalizeAgenticFilter({
+                  registries: input.registries,
+                  capabilities: input.capabilities,
+                  protocols: input.protocols,
+                  adapters: input.adapters,
+                  minTrust: input.minTrust,
+                  verified: input.verified,
+                  online: input.online,
+                  type: input.type ?? inferDelegationType(taskText),
+                }),
+              }),
+            );
+        const plannerSelection =
+          !input.uaid && planResult?.value !== undefined
+            ? selectPlannerCandidates(planResult.value, {
+                task: input.task,
+                query,
+                opportunityId: input.opportunityId,
+              })
+            : undefined;
+        const rankedCandidates = input.uaid
           ? [{ uaid: input.uaid, label: input.uaid }]
-          : pickDelegateCandidates(
-              [searches?.agentic.value, searches?.vector.value, searches?.keyword.value],
-              {
-                limit: input.limit,
+          : plannerSelection && plannerSelection.candidates.length > 0
+            ? plannerSelection.candidates
+            : await findFallbackCandidates(service, query, {
+                task: input.task,
+                limit: desiredCandidateCount,
                 registries: input.registries,
+                capabilities: input.capabilities,
+                protocols: input.protocols,
+                adapters: input.adapters,
                 minTrust: input.minTrust,
                 verified: input.verified,
                 online: input.online,
-              },
+                type: input.type,
+                desiredCandidateCount,
+              });
+        const candidates = input.uaid
+          ? rankedCandidates
+          : await preferReachableCandidates(
+              service,
+              rankedCandidates,
+              desiredCandidateCount,
+              Math.min(computeRankingPoolSize(taskText, desiredCandidateCount), rankedCandidates.length),
             );
 
         if (candidates.length === 0) {
@@ -203,15 +389,19 @@ export function createToolDefinitions(
             `No broker candidates were found for ${JSON.stringify(query)}.`,
             'registryBroker.summonAgent',
             {
+              strategy:
+                plannerSelection && plannerSelection.candidates.length > 0
+                  ? 'broker-plan'
+                  : 'search-fallback',
               query,
               task: input.task,
               candidates: [],
-              sources: searches
-                ? {
-                    agentic: searches.agentic.error ? { error: searches.agentic.error } : searches.agentic.value,
-                    vector: searches.vector.error ? { error: searches.vector.error } : searches.vector.value,
-                    keyword: searches.keyword.error ? { error: searches.keyword.error } : searches.keyword.value,
-                  }
+              selectedOpportunity: plannerSelection?.selectedOpportunity,
+              opportunities: plannerSelection?.opportunities,
+              planner: planResult
+                ? planResult.error
+                  ? { error: planResult.error }
+                  : planResult.value
                 : undefined,
             },
           );
@@ -255,17 +445,23 @@ export function createToolDefinitions(
             .join('\n'),
           'registryBroker.summonAgent',
           {
+            strategy:
+              plannerSelection && plannerSelection.candidates.length > 0
+                ? 'broker-plan'
+                : input.uaid
+                  ? 'direct-uaid'
+                  : 'search-fallback',
             query,
             task: input.task,
             mode: input.mode,
+            selectedOpportunity: plannerSelection?.selectedOpportunity,
+            opportunities: plannerSelection?.opportunities,
             candidates,
             enlisted,
-            sources: searches
-              ? {
-                  agentic: searches.agentic.error ? { error: searches.agentic.error } : searches.agentic.value,
-                  vector: searches.vector.error ? { error: searches.vector.error } : searches.vector.value,
-                  keyword: searches.keyword.error ? { error: searches.keyword.error } : searches.keyword.value,
-                }
+            planner: planResult
+              ? planResult.error
+                ? { error: planResult.error }
+                : planResult.value
               : undefined,
           },
         );
@@ -393,6 +589,9 @@ async function collectSearches(
           capabilities: filters.capabilities,
           protocols: filters.protocols,
           adapters: filters.adapters,
+          minTrust: filters.minTrust,
+          verified: filters.verified,
+          online: filters.online,
           type: filters.type,
         }),
       }),
@@ -481,6 +680,31 @@ async function sendToCandidate(
   };
 }
 
+async function preferReachableCandidates(
+  service: BrokerService,
+  candidates: DelegateCandidate[],
+  desiredCount: number,
+  scanLimit: number,
+): Promise<DelegateCandidate[]> {
+  if (candidates.length === 0 || desiredCount <= 0 || scanLimit <= 0) {
+    return [];
+  }
+
+  const scanned = candidates.slice(0, scanLimit);
+  const resolutions = await Promise.all(
+    scanned.map(async (candidate) => ({
+      candidate,
+      resolution: await safeInvoke(() => service.resolveUaid(candidate.uaid)),
+    })),
+  );
+
+  const reachable = resolutions
+    .filter((entry) => isResolvedCandidate(entry.resolution.value))
+    .map((entry) => entry.candidate);
+
+  return (reachable.length > 0 ? reachable : scanned).slice(0, desiredCount);
+}
+
 async function safeInvoke<T>(callback: () => Promise<T>): Promise<SafeResult<T>> {
   try {
     return { value: await callback() };
@@ -489,6 +713,280 @@ async function safeInvoke<T>(callback: () => Promise<T>): Promise<SafeResult<T>>
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function isResolvedCandidate(value: unknown): boolean {
+  if (!isJsonRecord(value)) {
+    return false;
+  }
+
+  if (isJsonRecord(value.agent)) {
+    return true;
+  }
+
+  return typeof value.uaid === 'string' && value.uaid.trim().length > 0;
+}
+
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function computeRankingPoolSize(taskText: string, limit: number): number {
+  if (/\b(code|coding|debug|bug|typescript|javascript|patch|refactor|implement|developer|software)\b/i.test(taskText)) {
+    return 60;
+  }
+
+  return Math.max(20, limit * 8);
+}
+
+function computePlannerLimit(limit: number): number {
+  return Math.min(Math.max(limit, 3), 5);
+}
+
+async function findFallbackCandidates(
+  service: BrokerService,
+  query: string,
+  filters: {
+    task?: string;
+    limit: number;
+    desiredCandidateCount?: number;
+    registries?: string[];
+    capabilities?: string[];
+    protocols?: string[];
+    adapters?: string[];
+    minTrust?: number;
+    verified?: boolean;
+    online?: boolean;
+    type?: 'ai-agents' | 'mcp-servers';
+  },
+): Promise<DelegateCandidate[]> {
+  const taskText = `${filters.task ?? ''}\n${query}`;
+  const desiredCandidateCount = filters.desiredCandidateCount ?? filters.limit;
+  const delegationType = filters.type ?? inferDelegationType(taskText);
+  const rankingPoolSize = computeRankingPoolSize(taskText, desiredCandidateCount);
+  const searches = await collectSearches(service, query, rankingPoolSize, {
+    registries: filters.registries,
+    capabilities: filters.capabilities,
+    protocols: filters.protocols,
+    adapters: filters.adapters,
+    minTrust: filters.minTrust,
+    verified: filters.verified,
+    online: filters.online,
+    type: delegationType,
+  });
+  const candidates = pickDelegateCandidates(
+    [searches.agentic.value, searches.vector.value, searches.keyword.value],
+    {
+      limit: rankingPoolSize,
+      registries: filters.registries,
+      minTrust: filters.minTrust,
+      verified: filters.verified,
+      online: filters.online,
+      taskText,
+    },
+  ).map((candidate) => ({
+    ...candidate,
+    suggestedMessage: buildDelegateMessage(filters.task ?? query, candidate),
+  }));
+
+  return preferReachableCandidates(
+    service,
+    candidates,
+    filters.limit,
+    Math.min(rankingPoolSize, candidates.length),
+  );
+}
+
+function selectPlannerCandidates(
+  payload: unknown,
+  input: {
+    task?: string;
+    query?: string;
+    opportunityId?: string;
+  },
+): PlannerSelection | undefined {
+  if (!isJsonRecord(payload) || !Array.isArray(payload.opportunities)) {
+    return undefined;
+  }
+
+  const opportunities = payload.opportunities.filter(isJsonRecord);
+  if (opportunities.length === 0) {
+    return undefined;
+  }
+
+  const recommendation = isJsonRecord(payload.recommendation)
+    ? (payload.recommendation as PlannerRecommendation)
+    : undefined;
+
+  if (recommendation?.action === 'delegate-now') {
+    const selectedOpportunity = recommendation.opportunityId
+      ? opportunities.find((opportunity) => opportunity.id === recommendation.opportunityId)
+      : selectPlannerOpportunity(opportunities, input);
+    const directCandidate = recommendation.candidate
+      ? plannerCandidateToDelegate(recommendation.candidate)
+      : undefined;
+    const opportunityCandidates = selectedOpportunity
+      ? extractPlannerCandidates(selectedOpportunity)
+      : [];
+    const candidates = directCandidate ? [directCandidate] : opportunityCandidates;
+
+    if (candidates.length > 0) {
+      return {
+        opportunities,
+        selectedOpportunity,
+        candidates,
+        recommendation,
+      };
+    }
+  }
+
+  const selectedOpportunity = selectPlannerOpportunity(opportunities, input);
+  const candidates = selectedOpportunity
+    ? extractPlannerCandidates(selectedOpportunity)
+    : [];
+
+  return {
+    opportunities,
+    selectedOpportunity,
+    candidates,
+    recommendation,
+  };
+}
+
+function selectPlannerOpportunity(
+  opportunities: PlannerOpportunity[],
+  input: {
+    task?: string;
+    query?: string;
+    opportunityId?: string;
+  },
+): PlannerOpportunity | undefined {
+  if (input.opportunityId) {
+    const explicit = opportunities.find(
+      (opportunity) => opportunity.id === input.opportunityId,
+    );
+    if (explicit) {
+      return explicit;
+    }
+  }
+
+  const reference = `${input.query ?? ''} ${input.task ?? ''}`.trim().toLowerCase();
+  if (!reference) {
+    return opportunities.find((opportunity) => extractPlannerCandidates(opportunity).length > 0);
+  }
+
+  const ranked = opportunities
+    .map((opportunity) => ({
+      opportunity,
+      score: scorePlannerOpportunity(opportunity, reference),
+    }))
+    .sort((left, right) => right.score - left.score);
+
+  return (
+    ranked.find((entry) => extractPlannerCandidates(entry.opportunity).length > 0)?.opportunity ??
+    opportunities.find((opportunity) => extractPlannerCandidates(opportunity).length > 0)
+  );
+}
+
+function scorePlannerOpportunity(opportunity: PlannerOpportunity, reference: string): number {
+  const haystack = [
+    opportunity.id,
+    opportunity.title,
+    opportunity.reason,
+    opportunity.role,
+    ...(Array.isArray(opportunity.searchQueries) ? opportunity.searchQueries : []),
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  return reference
+    .split(/\s+/)
+    .filter((token) => token.length > 2)
+    .reduce((score, token) => score + (haystack.includes(token) ? 1 : 0), 0);
+}
+
+function extractPlannerCandidates(opportunity: PlannerOpportunity): DelegateCandidate[] {
+  if (!Array.isArray(opportunity.candidates)) {
+    return [];
+  }
+
+  return opportunity.candidates
+    .map((candidate) => plannerCandidateToDelegate(candidate))
+    .filter((candidate): candidate is DelegateCandidate => candidate !== null);
+}
+
+function plannerCandidateToDelegate(candidate: unknown): DelegateCandidate | null {
+  if (!isJsonRecord(candidate)) {
+    return null;
+  }
+
+  const agent = isJsonRecord(candidate.agent) ? candidate.agent : candidate;
+  const profile = isJsonRecord(agent.profile) ? agent.profile : undefined;
+  const metadata = isJsonRecord(agent.metadata) ? agent.metadata : undefined;
+  const uaid =
+    readString(candidate.uaid) ??
+    readString(agent.uaid) ??
+    readString(agent.id);
+
+  if (!uaid) {
+    return null;
+  }
+
+  return {
+    uaid,
+    label:
+      readString(candidate.label) ??
+      readString(profile?.display_name) ??
+      readString(profile?.alias) ??
+      readString(agent.name) ??
+      uaid,
+    registry: readString(agent.registry),
+    endpoint: readAgentEndpoint(agent),
+    protocol: readString(metadata?.protocol) ?? readString(candidate.protocol),
+    trustScore: readNumber(agent.trustScore) ?? readNumber(candidate.score),
+    verified: readBoolean(candidate.verified),
+    avgLatency: readNumber(candidate.avgLatency),
+    available: readBoolean(metadata?.available),
+    score: readNumber(candidate.score),
+    communicationSupported:
+      readBoolean(agent.communicationSupported) ?? readBoolean(candidate.communicationSupported),
+    alias: readString(profile?.alias),
+    provider: readString(metadata?.provider),
+    searchText: [
+      readString(profile?.display_name),
+      readString(profile?.alias),
+      readString(agent.name),
+      readString(agent.description),
+      readString(metadata?.delegationSummary),
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(' '),
+  };
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function readAgentEndpoint(agent: Record<string, unknown>): string | undefined {
+  if (!isJsonRecord(agent.endpoints)) {
+    return undefined;
+  }
+
+  return (
+    readString(agent.endpoints.primary) ??
+    readString(agent.endpoints.api) ??
+    readString(agent.endpoints.endpoint)
+  );
 }
 
 function resultWithPayload(summary: string, label: string, payload: unknown): ToolResult {
