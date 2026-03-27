@@ -15,10 +15,26 @@ export interface AgenticSearchRequest {
   filter?: Record<string, unknown>;
 }
 
+export interface DelegationWorkspaceInput {
+  openFiles?: string[];
+  modifiedFiles?: string[];
+  relatedPaths?: string[];
+  errors?: string[];
+  commands?: string[];
+  languages?: string[];
+}
+
 export interface BrokerService {
   search(input: SearchParams): Promise<SearchResult>;
   vectorSearch(query: string, limit: number): Promise<unknown>;
   agenticSearch(input: AgenticSearchRequest): Promise<unknown>;
+  planDelegation(input: {
+    task: string;
+    context?: string;
+    workspace?: DelegationWorkspaceInput;
+    limit: number;
+    filter?: Record<string, unknown>;
+  }): Promise<unknown>;
   sendMessage(input: SendMessageRequestPayload): Promise<SendMessageResponse>;
   getHistory(sessionId: string): Promise<unknown>;
   stats(): Promise<unknown>;
@@ -73,6 +89,28 @@ export class RegistryBrokerService implements BrokerService {
       }
       throw error;
     }
+  }
+
+  planDelegation(input: {
+    task: string;
+    context?: string;
+    workspace?: DelegationWorkspaceInput;
+    limit: number;
+    filter?: Record<string, unknown>;
+  }): Promise<unknown> {
+    return this.client.requestJson('/search/delegation-plan', {
+      method: 'POST',
+      body: {
+        task: input.task,
+        ...(input.context ? { context: input.context } : {}),
+        ...(input.workspace ? { workspace: input.workspace } : {}),
+        limit: input.limit,
+        ...(input.filter ? { filter: input.filter } : {}),
+      },
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
   }
 
   sendMessage(input: SendMessageRequestPayload): Promise<SendMessageResponse> {
