@@ -1,0 +1,71 @@
+{
+  "name": "@hashgraphonline/registry-broker-codex-plugin",
+  "version": "0.1.0",
+  "description": "Codex plugin and MCP server for discovering, ranking, and summoning Registry Broker specialists.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.cjs",
+  "types": "./dist/index.d.cts",
+  "bin": {
+    "registry-broker-codex-plugin": "./dist/cli.cjs"
+  },
+  "files": [
+    "dist",
+    ".codex-plugin",
+    ".mcp.json",
+    "skills",
+    "assets",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e:broker": "tsx scripts/e2e-local-broker.ts"
+  },
+  "keywords": [
+    "openai-codex",
+    "codex-cli",
+    "codex-plugin",
+    "registry-broker",
+    "model-context-protocol",
+    "mcp-server",
+    "ai-agents",
+    "agentic-ai",
+    "hedera"
+  ],
+  "author": "Hashgraph Online <hello@hashgraphonline.com>",
+  "license": "Apache-2.0",
+  "homepage": "https://hol.org/registry",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hashgraph-online/registry-broker-codex-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hashgraph-online/registry-broker-codex-plugin/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.24.0",
+  "dependencies": {
+    "@hashgraphonline/standards-sdk": "^0.1.158-canary.0",
+    "@modelcontextprotocol/sdk": "^1.21.1",
+    "fastmcp": "^3.22.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.2",
+    "vitest": "^3.2.4"
+  }
+}
