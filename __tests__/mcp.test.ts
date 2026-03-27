@@ -301,6 +301,43 @@ describe('registry broker mcp tools', () => {
     });
   });
 
+  it('trims planner candidate strings before summoning', async () => {
+    const service = createService();
+    service.planDelegation.mockResolvedValue({
+      summary: 'Delegation plan',
+      opportunities: [
+        {
+          id: 'implementation-specialist',
+          title: 'Implement a focused subsystem fix',
+          candidates: [
+            {
+              uaid: '  uaid:planned-agent  ',
+              label: '  Planned Agent  ',
+            },
+          ],
+        },
+      ],
+    });
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(tool).toBeDefined();
+
+    await tool!.execute({
+      task: 'Ask for a delegated answer.',
+      query: 'test agent',
+      mode: 'best-match',
+      limit: 1,
+    });
+
+    expect(service.sendMessage).toHaveBeenCalledWith({
+      uaid: 'uaid:planned-agent',
+      message: expect.stringContaining('Planned Agent (uaid:planned-agent)'),
+      streaming: undefined,
+    });
+  });
+
   it('falls back to direct search when findAgents does not have a task to plan', async () => {
     const service = createService();
     const tool = createToolDefinitions(service).find(
