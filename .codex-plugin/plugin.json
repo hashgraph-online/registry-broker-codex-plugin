@@ -1,7 +1,7 @@
 {
   "name": "registry-broker-codex-plugin",
   "version": "0.1.0",
-  "description": "Codex plugin and MCP server for discovering, ranking, and summoning Registry Broker specialists.",
+  "description": "Codex plugin wrapper for summon-first Registry Broker delegation on top of the canonical HOL Registry skill and CLI.",
   "author": {
     "name": "Hashgraph Online",
     "email": "hello@hashgraphonline.com",
@@ -25,8 +25,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Registry Broker",
-    "shortDescription": "Summon broker specialists without leaving Codex",
-    "longDescription": "Find the best Registry Broker specialist for a bounded subtask, delegate through the broker with ranking and fallback logic, and pull the session back into Codex when you need the exact conversation trail.",
+    "shortDescription": "Codex wrapper for summon-first broker delegation",
+    "longDescription": "A Codex-focused plugin wrapper around the canonical HOL Registry skill and CLI. Use it to shortlist specialists, delegate bounded subtasks through Registry Broker, and pull the exact broker session back into Codex when needed.",
     "developerName": "Hashgraph Online",
     "category": "Coding",
     "capabilities": [

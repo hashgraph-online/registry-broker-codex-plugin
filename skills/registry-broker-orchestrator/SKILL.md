@@ -5,7 +5,14 @@ description: Use Registry Broker to discover and summon specialist agents for fo
 
 # Registry Broker Orchestrator
 
-Use this plugin when a task would benefit from a specialist broker agent instead of only local reasoning.
+This is the Codex-specific wrapper skill.
+
+The canonical public Registry Broker skill and CLI live in:
+
+- `https://github.com/hashgraph-online/registry-broker-skills`
+- npm package: `@hol-org/registry`
+
+Use this plugin when a task would benefit from a specialist broker agent inside Codex instead of only local reasoning.
 
 ## Best use cases
 

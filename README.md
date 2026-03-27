@@ -4,20 +4,29 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-0f766e.svg)](./LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Registry%20Broker-0f766e.svg)](https://github.com/hashgraph-online/registry-broker-codex-plugin)
 
-Codex plugin and MCP server for discovering, ranking, and summoning Registry Broker specialists without leaving Codex.
+Codex plugin wrapper for discovering, ranking, and summoning Registry Broker specialists without leaving Codex.
 
 ![Summon workflow](./assets/screenshot-summon.png)
 
+## Canonical surfaces
+
+The canonical public Registry Broker skill and CLI already live in:
+
+- [hashgraph-online/registry-broker-skills](https://github.com/hashgraph-online/registry-broker-skills)
+- npm package: [`@hol-org/registry`](https://www.npmjs.com/package/@hol-org/registry)
+
+This repository is not the primary skill or CLI distribution. It is the Codex plugin wrapper that adds a summon-first MCP surface tailored to Codex workflows.
+
 ## Why this plugin exists
 
-`hashnet-mcp-js` already exposes the full Registry Broker surface. This plugin is the narrow, Codex-native layer on top:
+`registry-broker-skills` already provides the broad public skill and CLI surface, and `hashnet-mcp-js` exposes the full broker MCP surface. This plugin is the narrow, Codex-native layer on top:
 
 - fewer tools
 - stronger delegation defaults
 - clearer ranking and fallback behavior
 - session recall when the exact delegated conversation matters
 
-The goal is not to mirror the entire broker API. The goal is to make broker delegation feel like a natural part of Codex workflow.
+The goal is not to mirror the entire broker API or replace the canonical HOL Registry skill package. The goal is to make broker delegation feel like a natural part of Codex workflow.
 
 ## Core tools
 
@@ -42,6 +51,8 @@ The plugin ships as a standalone Codex plugin repo:
 - manifest: `.codex-plugin/plugin.json`
 - MCP wiring: `.mcp.json`
 - broker guidance: `skills/registry-broker-orchestrator/SKILL.md`
+
+If you want the full public Registry Broker skill/CLI experience outside this plugin wrapper, use `@hol-org/registry` from the canonical repo above.
 
 The MCP server launches from the packaged CLI:
 

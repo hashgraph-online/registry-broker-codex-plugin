@@ -1,7 +1,7 @@
 {
   "name": "@hashgraphonline/registry-broker-codex-plugin",
   "version": "0.1.0",
-  "description": "Codex plugin and MCP server for discovering, ranking, and summoning Registry Broker specialists.",
+  "description": "Codex plugin wrapper for summon-first Registry Broker delegation on top of the canonical HOL Registry skill and CLI.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.cjs",
