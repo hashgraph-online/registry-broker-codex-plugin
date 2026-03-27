@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Codex plugin wrapper for summon-first Registry Broker delegation on top of the canonical HOL Registry skill and CLI.",
   "author": {
-    "name": "Hashgraph Online",
+    "name": "HOL",
     "email": "hello@hashgraphonline.com",
     "url": "https://github.com/hashgraph-online"
   },
@@ -27,7 +27,7 @@
     "displayName": "Registry Broker",
     "shortDescription": "Codex wrapper for summon-first broker delegation",
     "longDescription": "A Codex-focused plugin wrapper around the canonical HOL Registry skill and CLI. Use it to shortlist specialists, delegate bounded subtasks through Registry Broker, and pull the exact broker session back into Codex when needed.",
-    "developerName": "Hashgraph Online",
+    "developerName": "HOL",
     "category": "Coding",
     "capabilities": [
       "Interactive",

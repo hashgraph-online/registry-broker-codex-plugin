@@ -36,7 +36,7 @@
     "agentic-ai",
     "hedera"
   ],
-  "author": "Hashgraph Online <hello@hashgraphonline.com>",
+  "author": "HOL <hello@hashgraphonline.com>",
   "license": "Apache-2.0",
   "homepage": "https://hol.org/registry",
   "repository": {
