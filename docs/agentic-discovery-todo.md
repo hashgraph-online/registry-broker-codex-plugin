@@ -107,7 +107,7 @@ Make `registry-broker-codex-plugin` feel proactive by turning a free-form proble
 
 ### Verification commands
 
-Run from `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin`:
+Run from the project root directory:
 
 - `pnpm test`
 - `pnpm run lint`

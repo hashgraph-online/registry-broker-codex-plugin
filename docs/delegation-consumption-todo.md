@@ -8,9 +8,9 @@ Update the Registry Broker plugin so it fully consumes the broker-native delegat
 
 Files:
 
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/src/mcp.ts`
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/src/broker.ts`
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/src/ranking.ts`
+- `src/mcp.ts`
+- `src/broker.ts`
+- `src/ranking.ts`
 
 Tasks:
 
@@ -22,8 +22,8 @@ Tasks:
 
 Files:
 
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/src/mcp.ts`
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/skills/registry-broker-orchestrator/SKILL.md`
+- `src/mcp.ts`
+- `skills/registry-broker-orchestrator/SKILL.md`
 
 Tasks:
 
@@ -39,8 +39,8 @@ Tasks:
 
 Files:
 
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/src/mcp.ts`
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/src/broker.ts`
+- `src/mcp.ts`
+- `src/broker.ts`
 
 Tasks:
 
@@ -54,8 +54,8 @@ Tasks:
 
 Files:
 
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/src/mcp.ts`
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/src/ranking.ts`
+- `src/mcp.ts`
+- `src/ranking.ts`
 
 Tasks:
 
@@ -68,7 +68,7 @@ Tasks:
 
 Files:
 
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/src/mcp.ts`
+- `src/mcp.ts`
 
 Tasks:
 
@@ -81,8 +81,8 @@ Tasks:
 
 Files:
 
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/__tests__/mcp.test.ts`
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/__tests__/delegation-planner.test.ts`
+- `__tests__/mcp.test.ts`
+- `__tests__/delegation-planner.test.ts`
 
 Tasks:
 
@@ -97,7 +97,7 @@ Tasks:
 
 Files:
 
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/scripts/e2e-local-broker.ts`
+- `scripts/e2e-local-broker.ts`
 
 Tasks:
 
@@ -112,7 +112,7 @@ Tasks:
 
 Files:
 
-- `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin/README.md`
+- `README.md`
 
 Tasks:
 
@@ -128,9 +128,9 @@ Tasks:
 
 Commands:
 
-- in `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker`:
+- in the `registry-broker` repository:
   - `docker compose restart registry-broker`
-- in `/Users/michaelkantor/CascadeProjects/hashgraph-online/registry-broker-codex-plugin`:
+- in the `registry-broker-codex-plugin` repository:
   - `pnpm run lint`
   - `pnpm run typecheck`
   - `pnpm test`
