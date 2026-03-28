@@ -55,7 +55,7 @@ function createService() {
         },
       ],
     }),
-    planDelegation: vi.fn().mockResolvedValue({
+    delegate: vi.fn().mockResolvedValue({
       summary: 'Delegation plan',
       recommendation: {
         action: 'delegate-now',
@@ -86,13 +86,19 @@ function createService() {
       sessionId: 'session-1',
       history: [],
     }),
-    stats: vi.fn().mockResolvedValue({ totalAgents: 10 }),
-    listProtocols: vi.fn().mockResolvedValue({ protocols: ['a2a', 'mcp'] }),
     resolveUaid: vi.fn().mockResolvedValue({}),
   };
 }
 
 describe('registry broker mcp tools', () => {
+  it('does not expose an end-user health tool', () => {
+    const service = createService();
+
+    const toolNames = createToolDefinitions(service).map((entry) => entry.name);
+
+    expect(toolNames).not.toContain('registryBroker.health');
+  });
+
   it('returns ranked candidates from findAgents', async () => {
     const service = createService();
     const tool = createToolDefinitions(service).find(
@@ -109,14 +115,14 @@ describe('registry broker mcp tools', () => {
 
     const text = result.content.map((entry) => entry.text).join('\n');
     expect(text).toContain('Test Agent');
-    expect(service.planDelegation).toHaveBeenCalledOnce();
+    expect(service.delegate).toHaveBeenCalledOnce();
     expect(service.agenticSearch).not.toHaveBeenCalled();
     expect(service.search).not.toHaveBeenCalled();
   });
 
   it('uses planner-selected candidates before local ranking in findAgents', async () => {
     const service = createService();
-    service.planDelegation.mockResolvedValue({
+    service.delegate.mockResolvedValue({
       summary: 'Delegation plan',
       recommendation: {
         action: 'delegate-now',
@@ -154,15 +160,15 @@ describe('registry broker mcp tools', () => {
     const text = result.content.map((entry) => entry.text).join('\n');
     expect(text).toContain('Planned Agent');
     expect(text).not.toContain('Test Agent');
-    expect(service.planDelegation).toHaveBeenCalledOnce();
+    expect(service.delegate).toHaveBeenCalledOnce();
     expect(service.agenticSearch).not.toHaveBeenCalled();
     expect(service.search).not.toHaveBeenCalled();
   });
 
-  it('returns delegation opportunities from planDelegation', async () => {
+  it('returns delegation opportunities from delegate', async () => {
     const service = createService();
     const tool = createToolDefinitions(service).find(
-      (entry) => entry.name === 'registryBroker.planDelegation',
+      (entry) => entry.name === 'registryBroker.delegate',
     );
 
     expect(tool).toBeDefined();
@@ -180,14 +186,16 @@ describe('registry broker mcp tools', () => {
     const text = result.content.map((entry) => entry.text).join('\n');
     expect(text).toContain('Delegation opportunities');
     expect(text).toContain('Recommendation: delegate-now');
+    expect(text).toContain('Recommended candidate: Test Agent');
+    expect(text).toContain('Selected opportunity: research-specialist');
     expect(text).toContain('research-specialist');
-    expect(service.planDelegation).toHaveBeenCalledOnce();
+    expect(service.delegate).toHaveBeenCalledOnce();
   });
 
   it('passes canonical delegation filters to the broker planner', async () => {
     const service = createService();
     const tool = createToolDefinitions(service).find(
-      (entry) => entry.name === 'registryBroker.planDelegation',
+      (entry) => entry.name === 'registryBroker.delegate',
     );
 
     expect(tool).toBeDefined();
@@ -209,7 +217,7 @@ describe('registry broker mcp tools', () => {
       },
     });
 
-    expect(service.planDelegation).toHaveBeenCalledWith({
+    expect(service.delegate).toHaveBeenCalledWith({
       task: 'Review a TypeScript patch for correctness.',
       context: undefined,
       workspace: {
@@ -247,7 +255,7 @@ describe('registry broker mcp tools', () => {
 
     const text = result.content.map((entry) => entry.text).join('\n');
     expect(text).toContain('Messages attempted: 1, succeeded: 1');
-    expect(service.planDelegation).toHaveBeenCalledOnce();
+    expect(service.delegate).toHaveBeenCalledOnce();
     expect(service.agenticSearch).not.toHaveBeenCalled();
     expect(service.search).not.toHaveBeenCalled();
     expect(service.sendMessage).toHaveBeenCalledOnce();
@@ -255,7 +263,7 @@ describe('registry broker mcp tools', () => {
 
   it('uses planner-selected candidates before local ranking in summonAgent', async () => {
     const service = createService();
-    service.planDelegation.mockResolvedValue({
+    service.delegate.mockResolvedValue({
       summary: 'Delegation plan',
       recommendation: {
         action: 'delegate-now',
@@ -291,7 +299,7 @@ describe('registry broker mcp tools', () => {
       limit: 1,
     });
 
-    expect(service.planDelegation).toHaveBeenCalledOnce();
+    expect(service.delegate).toHaveBeenCalledOnce();
     expect(service.agenticSearch).not.toHaveBeenCalled();
     expect(service.search).not.toHaveBeenCalled();
     expect(service.sendMessage).toHaveBeenCalledWith({
@@ -303,7 +311,7 @@ describe('registry broker mcp tools', () => {
 
   it('trims planner candidate strings before summoning', async () => {
     const service = createService();
-    service.planDelegation.mockResolvedValue({
+    service.delegate.mockResolvedValue({
       summary: 'Delegation plan',
       opportunities: [
         {
@@ -355,12 +363,12 @@ describe('registry broker mcp tools', () => {
     expect(text).toContain('"query"');
     expect(service.agenticSearch).toHaveBeenCalled();
     expect(service.search).toHaveBeenCalled();
-    expect(service.planDelegation).not.toHaveBeenCalled();
+    expect(service.delegate).not.toHaveBeenCalled();
   });
 
   it('falls back to local search when planner returns no candidates', async () => {
     const service = createService();
-    service.planDelegation.mockResolvedValue({
+    service.delegate.mockResolvedValue({
       summary: 'Delegation plan',
       opportunities: [],
     });
@@ -378,7 +386,7 @@ describe('registry broker mcp tools', () => {
 
     const text = result.content.map((entry) => entry.text).join('\n');
     expect(text).toContain('Test Agent');
-    expect(service.planDelegation).toHaveBeenCalledOnce();
+    expect(service.delegate).toHaveBeenCalledOnce();
     expect(service.agenticSearch).toHaveBeenCalledOnce();
     expect(service.search).toHaveBeenCalledOnce();
   });
@@ -410,9 +418,136 @@ describe('registry broker mcp tools', () => {
     });
   });
 
+  it('surfaces broker review-shortlist guidance in findAgents without local reranking drift', async () => {
+    const service = createService();
+    service.delegate.mockResolvedValue({
+      summary: 'Delegation plan',
+      recommendation: {
+        action: 'review-shortlist',
+        opportunityId: 'implementation-specialist',
+        reason: 'Implementation and verification are both viable next steps.',
+      },
+      opportunities: [
+        {
+          id: 'implementation-specialist',
+          title: 'Implement the fix',
+          reason: 'A code specialist can patch the bug quickly.',
+          candidates: [
+            {
+              uaid: 'uaid:implementation-agent',
+              label: 'Implementation Agent',
+            },
+            {
+              uaid: 'uaid:verification-agent',
+              label: 'Verification Agent',
+            },
+          ],
+        },
+      ],
+    });
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.findAgents',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      query: 'fix a TypeScript plugin bug',
+      task: 'Fix this TypeScript plugin bug and verify the patch.',
+      limit: 2,
+    });
+
+    const text = result.content.map((entry) => entry.text).join('\n');
+    expect(text).toContain('Recommendation: review-shortlist');
+    expect(text).toContain('Reason: Implementation and verification are both viable next steps.');
+    expect(text).toContain('Implementation Agent');
+    expect(text).toContain('Verification Agent');
+    expect(service.search).not.toHaveBeenCalled();
+    expect(service.agenticSearch).not.toHaveBeenCalled();
+  });
+
+  it('returns handle-locally from summonAgent without sending a broker message', async () => {
+    const service = createService();
+    service.delegate.mockResolvedValue({
+      summary: 'Delegation plan',
+      recommendation: {
+        action: 'handle-locally',
+        reason: 'This looks like a small local edit with tight workspace coupling.',
+      },
+      opportunities: [],
+    });
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      task: 'Rename one local constant and update one import.',
+      mode: 'best-match',
+      limit: 1,
+    });
+
+    const text = result.content.map((entry) => entry.text).join('\n');
+    expect(text).toContain('Recommendation: handle-locally');
+    expect(text).toContain('Reason: This looks like a small local edit with tight workspace coupling.');
+    expect(service.sendMessage).not.toHaveBeenCalled();
+    expect(service.search).not.toHaveBeenCalled();
+    expect(service.agenticSearch).not.toHaveBeenCalled();
+  });
+
+  it('returns broker shortlist guidance from summonAgent before sending when review is recommended', async () => {
+    const service = createService();
+    service.delegate.mockResolvedValue({
+      summary: 'Delegation plan',
+      recommendation: {
+        action: 'review-shortlist',
+        opportunityId: 'design-specialist',
+        reason: 'Two strong design delegates are close enough that the user should review the shortlist.',
+      },
+      opportunities: [
+        {
+          id: 'design-specialist',
+          title: 'Design the landing page and onboarding flow',
+          reason: 'This needs a design specialist with strong consumer UX taste.',
+          candidates: [
+            {
+              uaid: 'uaid:landing-page-agent',
+              label: 'Landing Page Agent',
+            },
+            {
+              uaid: 'uaid:onboarding-agent',
+              label: 'Onboarding Agent',
+            },
+          ],
+        },
+      ],
+    });
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      task: 'Design a landing page and onboarding UX for this feature.',
+      mode: 'best-match',
+      limit: 1,
+    });
+
+    const text = result.content.map((entry) => entry.text).join('\n');
+    expect(text).toContain('Recommendation: review-shortlist');
+    expect(text).toContain('Reason: Two strong design delegates are close enough that the user should review the shortlist.');
+    expect(text).toContain('Landing Page Agent');
+    expect(text).toContain('Onboarding Agent');
+    expect(service.sendMessage).not.toHaveBeenCalled();
+    expect(service.search).not.toHaveBeenCalled();
+    expect(service.agenticSearch).not.toHaveBeenCalled();
+  });
+
   it('falls back to local discovery when planner returns no summon candidates', async () => {
     const service = createService();
-    service.planDelegation.mockResolvedValue({
+    service.delegate.mockResolvedValue({
       summary: 'Delegation plan',
       opportunities: [],
     });
@@ -431,7 +566,7 @@ describe('registry broker mcp tools', () => {
 
     const text = result.content.map((entry) => entry.text).join('\n');
     expect(text).toContain('Messages attempted: 1, succeeded: 1');
-    expect(service.planDelegation).toHaveBeenCalledOnce();
+    expect(service.delegate).toHaveBeenCalledOnce();
     expect(service.agenticSearch).toHaveBeenCalledOnce();
     expect(service.search).toHaveBeenCalledOnce();
     expect(service.sendMessage).toHaveBeenCalledOnce();
@@ -439,7 +574,7 @@ describe('registry broker mcp tools', () => {
 
   it('skips unroutable discovery candidates before sending a summon', async () => {
     const service = createService();
-    service.planDelegation.mockResolvedValue({
+    service.delegate.mockResolvedValue({
       summary: 'Delegation plan',
       opportunities: [],
     });

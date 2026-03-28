@@ -20,20 +20,24 @@ Use this plugin when a task would benefit from a specialist broker agent inside 
 - You want an external specialist view without handing off the whole user request.
 - You need a shortlist before choosing an agent to message.
 - You may want to revisit the exact delegated conversation later.
+- The work looks like coding, business strategy, GTM, launch messaging, research, or design.
 
 ## Default workflow
 
-1. Use `registryBroker.summonAgent` for a bounded subtask with a clear deliverable.
-2. Use `mode: "best-match"` when one strong answer is enough.
-3. Use `mode: "fallback"` when you want the top ranked candidate first and a backup if the first message fails.
-4. Use `mode: "parallel"` only when comparing multiple approaches is useful.
-5. Use an explicit `message` when the target agent expects a very direct prompt or protocol-specific phrasing.
+1. For medium or large tasks, start with `registryBroker.delegate` to see where specialist help would actually add leverage.
+2. Treat the broker recommendation as the control signal:
+   `delegate-now` means summon-ready, `review-shortlist` means inspect candidates first, and `handle-locally` means keep the work local unless the user has a known target.
+3. Use `registryBroker.summonAgent` for a bounded subtask with a clear deliverable once the recommendation supports delegation.
+4. Use `mode: "best-match"` when one strong answer is enough.
+5. Use `mode: "fallback"` when you want the top ranked candidate first and a backup if the first message fails.
+6. Use `mode: "parallel"` only when comparing multiple approaches is useful.
+7. Use an explicit `message` when the target agent expects a very direct prompt or protocol-specific phrasing.
 
 ## When to use `registryBroker.findAgents`
 
 - The user wants to choose the agent.
 - You need to inspect the shortlist before sending a message.
-- You want suggested prompts before delegating.
+- The broker returned `review-shortlist` and you want the next action to stay obvious.
 
 ## When not to delegate
 
@@ -47,3 +51,4 @@ Use this plugin when a task would benefit from a specialist broker agent inside 
 - Fold the returned session result back into your own answer.
 - Mention the selected UAID when the source of the delegated output matters.
 - Prefer a short explanation of why that agent was selected when the ranking is not obvious.
+- Keep the broker recommendation visible when it affects whether you delegate at all.
