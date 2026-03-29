@@ -3,7 +3,7 @@ import { FastMCP } from 'fastmcp';
 import type { Context } from 'fastmcp';
 import { z } from 'zod';
 import type { BrokerService } from './broker';
-import { compactDelegationWorkspace, RegistryBrokerService } from './broker';
+import { RegistryBrokerService } from './broker';
 import { config } from './config';
 import {
   computePlannerLimit,
@@ -146,13 +146,12 @@ export function createToolDefinitions(
       execute: async (args, context) => {
         const requestId = context?.requestId ?? randomUUID();
         const input = delegateSchema.parse(args);
-        const workspace = compactDelegationWorkspace(input.workspace);
         logger.info({ requestId, tool: 'registryBroker.delegate' }, 'tool.invoke');
 
         const result = await service.delegate({
           task: input.task,
           context: input.context,
-          workspace,
+          workspace: input.workspace,
           limit: input.limit,
           filter: normalizeAgenticFilter({
             registries: input.registries,
@@ -213,7 +212,6 @@ export function createToolDefinitions(
       execute: async (args, context) => {
         const requestId = context?.requestId ?? randomUUID();
         const input = searchSchema.parse(args);
-        const workspace = compactDelegationWorkspace(input.workspace);
         logger.info({ requestId, tool: 'registryBroker.findAgents' }, 'tool.invoke');
         const task = input.task;
         const query = input.query;
@@ -223,7 +221,7 @@ export function createToolDefinitions(
               service.delegate({
                 task,
                 context: query !== task ? query : undefined,
-                workspace,
+                workspace: input.workspace,
                 limit: computePlannerLimit(input.limit),
                 filter: normalizeAgenticFilter({
                   registries: input.registries,
@@ -257,7 +255,8 @@ export function createToolDefinitions(
           plannerSelection === undefined ||
           (recommendationAction === undefined && plannerSelection.candidates.length === 0) ||
           (recommendationAction === 'delegate-now' && plannerSelection.candidates.length === 0) ||
-          (recommendationAction === 'review-shortlist' && plannerSelection.candidates.length === 0);
+          (recommendationAction === 'review-shortlist' && plannerSelection.candidates.length === 0) ||
+          (recommendationAction === 'handle-locally' && plannerSelection.candidates.length === 0);
         const shortlist = shouldUsePlannerShortlist
           ? await preferReachableCandidates(
               service,
@@ -336,7 +335,6 @@ export function createToolDefinitions(
       execute: async (args, context) => {
         const requestId = context?.requestId ?? randomUUID();
         const input = summonSchema.parse(args);
-        const workspace = compactDelegationWorkspace(input.workspace);
         logger.info({ requestId, tool: 'registryBroker.summonAgent' }, 'tool.invoke');
 
         const query = input.query ?? input.task;
@@ -348,7 +346,7 @@ export function createToolDefinitions(
               service.delegate({
                 task: input.task,
                 context: query !== input.task ? query : undefined,
-                workspace,
+                workspace: input.workspace,
                 limit: computePlannerLimit(desiredCandidateCount),
                 filter: normalizeAgenticFilter({
                   registries: input.registries,

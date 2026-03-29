@@ -67,7 +67,7 @@ describe('registryBroker.delegate tool', () => {
     expect(text).toContain('research-specialist');
   });
 
-  it('forwards compact workspace context for task-shaped planning', async () => {
+  it('forwards workspace context for task-shaped planning', async () => {
     const delegate = vi.fn().mockResolvedValue({
       recommendation: {
         action: 'delegate-now',
@@ -118,15 +118,17 @@ describe('registryBroker.delegate tool', () => {
       context: undefined,
       workspace: {
         openFiles: [
+          ' src/mcp.ts ',
           'src/mcp.ts',
           'src/broker.ts',
           'src/ranking.ts',
           'src/config.ts',
           'README.md',
           'skills/registry-broker-orchestrator/SKILL.md',
+          'docs/delegation-consumption-prd.md',
         ],
-        commands: ['pnpm test', 'pnpm run lint', 'pnpm run typecheck'],
-        languages: ['typescript', 'markdown'],
+        commands: [' pnpm test ', 'pnpm test', 'pnpm run lint', 'pnpm run typecheck'],
+        languages: [' typescript ', 'typescript', 'markdown'],
       },
       limit: 3,
       filter: undefined,

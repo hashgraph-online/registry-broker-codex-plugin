@@ -496,6 +496,34 @@ describe('registry broker mcp tools', () => {
     expect(service.agenticSearch).not.toHaveBeenCalled();
   });
 
+  it('falls back to search in findAgents when handle-locally has no opportunity candidates', async () => {
+    const service = createService();
+    service.delegate.mockResolvedValue({
+      summary: 'Delegation plan',
+      recommendation: {
+        action: 'handle-locally',
+        reason: 'This is probably best handled locally unless discovery finds a clearly useful specialist.',
+      },
+      opportunities: [],
+    });
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.findAgents',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      query: 'TypeScript bug verification specialist',
+      task: 'Rename one local constant and update one import.',
+      limit: 1,
+    });
+
+    const text = result.content.map((entry) => entry.text).join('\n');
+    expect(text).toContain('Recommendation: handle-locally');
+    expect(text).toContain('Test Agent');
+    expect(service.search).toHaveBeenCalled();
+  });
+
   it('returns broker shortlist guidance from summonAgent before sending when review is recommended', async () => {
     const service = createService();
     service.delegate.mockResolvedValue({
