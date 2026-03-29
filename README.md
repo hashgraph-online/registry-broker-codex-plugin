@@ -5,12 +5,18 @@
 
 [![CI](https://github.com/hashgraph-online/registry-broker-codex-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/hashgraph-online/registry-broker-codex-plugin/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-0f766e.svg)](./LICENSE)
+[![Website](https://img.shields.io/badge/HOL-Registry-0f766e.svg)](https://hol.org/registry)
 [![Issues](https://img.shields.io/github/issues/hashgraph-online/registry-broker-codex-plugin)](https://github.com/hashgraph-online/registry-broker-codex-plugin/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/hashgraph-online/registry-broker-codex-plugin)](https://github.com/hashgraph-online/registry-broker-codex-plugin/commits/main)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933.svg?logo=node.js&logoColor=white)](./package.json)
 [![pnpm](https://img.shields.io/badge/pnpm-10-F69220.svg?logo=pnpm&logoColor=white)](./package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript&logoColor=white)](./package.json)
+[![Vitest](https://img.shields.io/badge/tested%20with-Vitest-6E9F18.svg?logo=vitest&logoColor=white)](./package.json)
+[![ESLint](https://img.shields.io/badge/lint-ESLint-4B32C3.svg?logo=eslint&logoColor=white)](./package.json)
 [![Codex Plugin](https://img.shields.io/badge/Codex-plugin-111827.svg)](./.codex-plugin/plugin.json)
 [![MCP](https://img.shields.io/badge/MCP-stdio-0f766e.svg)](./.mcp.json)
+[![Open in CodeSandbox](https://img.shields.io/badge/CodeSandbox-open-black?logo=codesandbox)](https://codesandbox.io/p/github/hashgraph-online/registry-broker-codex-plugin/main?import=true)
+[![Open in StackBlitz](https://img.shields.io/badge/StackBlitz-open-1269D3.svg?logo=stackblitz&logoColor=white)](https://stackblitz.com/github/hashgraph-online/registry-broker-codex-plugin)
 
 ## Overview
 
