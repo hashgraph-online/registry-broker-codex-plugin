@@ -1,0 +1,68 @@
+name-template: v$RESOLVED_VERSION
+tag-template: v$RESOLVED_VERSION
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+no-changes-template: "- No user-facing changes in this release."
+template: |
+  ## Summary
+
+  $CHANGES
+
+  ## Contributors
+
+  $CONTRIBUTORS
+
+version-resolver:
+  major:
+    labels:
+      - major
+  minor:
+    labels:
+      - feature
+  patch:
+    labels:
+      - fix
+      - bug
+      - documentation
+      - ci
+      - maintenance
+      - chore
+      - dependencies
+      - tests
+      - refactor
+  default: patch
+
+categories:
+  - title: Features
+    labels:
+      - feature
+  - title: Fixes
+    labels:
+      - fix
+      - bug
+  - title: Documentation
+    labels:
+      - documentation
+  - title: Developer Experience
+    labels:
+      - ci
+      - maintenance
+      - chore
+      - dependencies
+      - tests
+      - refactor
+
+autolabeler:
+  - label: documentation
+    files:
+      - "*.md"
+      - "docs/**"
+  - label: ci
+    files:
+      - ".github/workflows/**"
+  - label: tests
+    files:
+      - "__tests__/**"
+  - label: dependencies
+    files:
+      - "package.json"
+      - "pnpm-lock.yaml"
