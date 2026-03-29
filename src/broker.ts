@@ -5,7 +5,7 @@ import {
   type SearchResult,
   type SendMessageRequestPayload,
   type SendMessageResponse,
-} from '@hashgraphonline/standards-sdk';
+} from './broker-client';
 import { config } from './config';
 
 export interface AgenticSearchRequest {

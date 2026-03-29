@@ -1,13 +1,14 @@
-import {
-  Logger,
-  setLoggerFactory,
-  type ILogger,
-  type LogLevel,
-  type LoggerOptions,
-} from '@hashgraphonline/standards-sdk';
 import { config } from './config';
 
-class StderrLogger implements ILogger {
+type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
+
+type LoggerOptions = {
+  level?: LogLevel;
+  module?: string;
+  silent?: boolean;
+};
+
+class StderrLogger {
   private level: LogLevel;
   private moduleName: string;
   private silent: boolean;
@@ -77,10 +78,7 @@ function shouldLog(current: LogLevel, target: LogLevel): boolean {
   return order.indexOf(target) >= order.indexOf(current);
 }
 
-setLoggerFactory((options: LoggerOptions) => new StderrLogger(options));
-
-export const logger = Logger.getInstance({
+export const logger = new StderrLogger({
   level: config.logLevel,
   module: 'registry-broker-codex-plugin',
-  prettyPrint: false,
 });

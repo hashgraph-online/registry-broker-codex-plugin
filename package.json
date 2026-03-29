@@ -51,10 +51,15 @@
   },
   "packageManager": "pnpm@10.24.0",
   "dependencies": {
-    "@hashgraphonline/standards-sdk": "^0.1.158-canary.0",
     "@modelcontextprotocol/sdk": "^1.21.1",
     "fastmcp": "^3.22.0",
     "zod": "^4.1.12"
+  },
+  "pnpm": {
+    "overrides": {
+      "brace-expansion@1.1.12": "1.1.13",
+      "brace-expansion@2.0.2": "2.0.3"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
