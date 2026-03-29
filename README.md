@@ -1,55 +1,65 @@
 # HOL Registry Broker Codex Plugin
 
-| ![](https://hol.org/brand/Logo_Whole_Dark.png) | Use Registry Broker inside Codex to decide when to delegate, shortlist specialists, message the right agent, and recover the broker conversation later.<br><br>Built and maintained by [HOL](https://hol.org).<br><br>[Canonical HOL Registry skill + CLI](https://github.com/hashgraph-online/registry-broker-skills)<br>[npm package: `@hol-org/registry`](https://www.npmjs.com/package/@hol-org/registry) |
+| ![](https://hol.org/brand/Logo_Whole_Dark.png) | Codex plugin for [HOL Registry Broker](https://hol.org/registry). This repository adds a Codex-facing MCP server and skill that let Codex ask the broker whether to delegate, inspect candidates, summon a selected agent, and recover the broker session later.<br><br>For the broader public Registry Broker skill and CLI, use [hashgraph-online/registry-broker-skills](https://github.com/hashgraph-online/registry-broker-skills) and [`@hol-org/registry`](https://www.npmjs.com/package/@hol-org/registry). |
 | :--- | :--- |
 
 [![CI](https://github.com/hashgraph-online/registry-broker-codex-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/hashgraph-online/registry-broker-codex-plugin/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-0f766e.svg)](./LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-Registry%20Broker-0f766e.svg)](https://github.com/hashgraph-online/registry-broker-codex-plugin)
+[![License](https://img.shields.io/badge/license-Apache--2.0-0f766e.svg)](./LICENSE)
+[![Issues](https://img.shields.io/github/issues/hashgraph-online/registry-broker-codex-plugin)](https://github.com/hashgraph-online/registry-broker-codex-plugin/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/hashgraph-online/registry-broker-codex-plugin)](https://github.com/hashgraph-online/registry-broker-codex-plugin/commits/main)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-339933.svg?logo=node.js&logoColor=white)](./package.json)
+[![pnpm](https://img.shields.io/badge/pnpm-10-F69220.svg?logo=pnpm&logoColor=white)](./package.json)
+[![Codex Plugin](https://img.shields.io/badge/Codex-plugin-111827.svg)](./.codex-plugin/plugin.json)
+[![MCP](https://img.shields.io/badge/MCP-stdio-0f766e.svg)](./.mcp.json)
 
-## What it does
+## Overview
 
-This plugin gives Codex a small, practical Registry Broker surface:
+This repository exposes four user-facing broker tools inside Codex:
 
 - `registryBroker.delegate`
-  Ask the broker whether the task should be delegated now, reviewed as a shortlist, or handled locally.
 - `registryBroker.findAgents`
-  Inspect the shortlist when the broker recommends review or when the user wants to choose.
 - `registryBroker.summonAgent`
-  Send a bounded subtask to a broker-selected agent or to a known UAID.
 - `registryBroker.sessionHistory`
-  Recover the exact broker conversation for follow-up work.
 
-The important behavior is recommendation-first:
+The broker returns one of three recommendation states:
 
-- `delegate-now`: Codex can move straight into delegation.
-- `review-shortlist`: Codex should show the shortlist before sending.
-- `handle-locally`: Codex should keep the work local unless there is a known target.
+- `delegate-now`
+- `review-shortlist`
+- `handle-locally`
 
-## Who this is for
+Codex can use that recommendation to decide whether to delegate immediately, show candidates first, or keep the work local.
 
-Use this when you want Codex to bring in outside specialists during real work such as:
+## When to use this plugin
 
-- fixing a code bug and getting a second implementation or verification pass
-- writing a business plan or GTM strategy
-- designing a landing page or onboarding flow
-- drafting launch messaging or lifecycle copy
-- doing research and competitive analysis
+Use this plugin when a Codex task can benefit from a broker-selected outside specialist, for example:
 
-If you want the full public Registry Broker skill or CLI outside Codex, use the canonical project:
+- bug fixing and verification
+- implementation review
+- research and competitive analysis
+- business planning or GTM work
+- landing page, onboarding, or UX exploration
+- launch messaging and lifecycle copy
+
+If you only need the public Registry Broker skill or CLI outside Codex, use:
 
 - [hashgraph-online/registry-broker-skills](https://github.com/hashgraph-online/registry-broker-skills)
 - [`@hol-org/registry`](https://www.npmjs.com/package/@hol-org/registry)
 
 ## Install
 
-This repository ships as a standalone Codex plugin repo.
+Requirements:
 
-- plugin manifest: `.codex-plugin/plugin.json`
-- MCP wiring: `.mcp.json`
-- orchestration skill: `skills/registry-broker-orchestrator/SKILL.md`
+- Node `>=20`
+- pnpm `10`
 
-The packaged MCP server launches as:
+From the repository root:
+
+```bash
+pnpm install
+pnpm run build
+```
+
+The packaged MCP server entrypoint is:
 
 ```json
 {
@@ -62,62 +72,54 @@ The packaged MCP server launches as:
 }
 ```
 
-The public broker endpoint is `https://hol.org/registry/api/v1`.
+The public HOL Registry Broker API base URL is `https://hol.org/registry/api/v1`.
 
 ## Configure
 
+Supported public configuration:
+
 - `REGISTRY_BROKER_API_KEY`
-  Optional, but recommended for broker chat flows
+  Optional. Enables authenticated broker chat flows when your broker deployment requires an API key.
 - `MCP_SERVER_NAME`
-  Optional override for the MCP server display name
+  Optional. Overrides the MCP server display name.
 - `REGISTRY_BROKER_PLUGIN_LOG_LEVEL`
-  Default: `info`
+  Optional. Defaults to `info`.
 
-## Use it in Codex
+## Use in Codex
 
-Start with a task-shaped prompt. Codex can decide whether to delegate or stay local based on the broker recommendation.
+Start with a task-shaped prompt. Codex can call `registryBroker.delegate` first, then decide whether to shortlist or summon.
 
-- `Plan delegation opportunities for this task, then shortlist the best specialist to help.`
-- `Summon the best broker specialist for this bug and return a fix plan.`
-- `Write a business plan and GTM strategy for this product.`
-- `Design a landing page and onboarding UX for this feature.`
-- `Draft launch messaging and lifecycle email copy for this launch.`
-- `Research the market and compare us against the strongest alternatives.`
-- `Shortlist Registry Broker candidates for this subtask and explain the ranking.`
-- `Delegate this bounded task through Registry Broker and keep the session trail.`
+Example prompts:
 
-### Typical flow
+- `Delegate this bug investigation and return a fix plan.`
+- `Find broker candidates for this TypeScript verification task.`
+- `Write a business plan and GTM outline for this product.`
+- `Design a landing page and onboarding direction for this feature.`
+- `Research the market and compare the strongest alternatives.`
 
-1. Codex calls `registryBroker.delegate` for a real task.
+Typical flow:
+
+1. Codex calls `registryBroker.delegate`.
 2. The broker returns `delegate-now`, `review-shortlist`, or `handle-locally`.
-3. Codex either summons the delegate, shows the shortlist, or keeps the work local.
-4. If delegation happens, Codex can recover the broker thread later with `registryBroker.sessionHistory`.
+3. Codex either calls `registryBroker.summonAgent`, shows `registryBroker.findAgents`, or keeps working locally.
+4. If a delegation happened, Codex can recover the broker conversation with `registryBroker.sessionHistory`.
 
 ![Summon workflow](https://raw.githubusercontent.com/hashgraph-online/registry-broker-codex-plugin/main/assets/screenshot-summon.png)
 
 ![Shortlist workflow](https://raw.githubusercontent.com/hashgraph-online/registry-broker-codex-plugin/main/assets/screenshot-shortlist.png)
 
-## Local development
+## Verify
+
+Repository checks:
 
 ```bash
-pnpm install
-pnpm run build
-pnpm run typecheck
 pnpm run lint
+pnpm run typecheck
 pnpm test
+pnpm run build
 ```
 
-## Verify against a broker
-
-The smoke harness validates the real plugin consumer path:
-
-- code task recommendation
-- business-plan recommendation
-- landing-page and onboarding recommendation
-- recommendation visibility through `registryBroker.findAgents`
-- `summonAgent` behavior that stays aligned with the broker recommendation
-
-It then runs the live chat/session-history path against a known-working target when one is configured.
+Broker-backed smoke test:
 
 ```bash
 REGISTRY_BROKER_API_KEY='your-api-key-if-needed' \
@@ -129,44 +131,42 @@ REGISTRY_BROKER_E2E_EXPECT='expected response substring' \
 pnpm run e2e:broker
 ```
 
-Optional query-driven summon coverage is also supported when your broker exposes a discoverable and messageable target:
+Optional query-driven summon verification:
 
 ```bash
 REGISTRY_BROKER_E2E_QUERY_SUMMON_QUERY='query that should resolve to a chatable agent' \
 REGISTRY_BROKER_E2E_QUERY_SUMMON_EXPECT_UAID='uaid:aid:query-selected-agent' \
-REGISTRY_BROKER_E2E_QUERY_SUMMON_EXPECT='expected delegated response substring'
+REGISTRY_BROKER_E2E_QUERY_SUMMON_EXPECT='expected delegated response substring' \
+pnpm run e2e:broker
 ```
 
-The script supports two modes:
+The smoke harness supports:
 
-- local broker smoke check
-  Verifies recommendation consumption and can also run live summon/history verification when you provide a known-working target.
-- HOL-hosted production-safe check
-  Verifies the recommendation-consumption path against `https://hol.org/registry/api/v1` without assuming a writable target.
-
-The public path exercised here is the HOL-hosted Registry Broker endpoint. Private deployment details and internal endpoint override guidance are intentionally omitted from this public repository.
+- local broker verification when you provide a known-working target
+- HOL-hosted recommendation-consumption verification against `https://hol.org/registry/api/v1`
 
 ## Repository layout
 
-- `src/mcp.ts`: tool definitions, server instructions, and summon orchestration.
-- `src/delegation.ts`: planner consumption, fallback search, and summon routing helpers.
-- `src/broker.ts`: thin broker client adapter over `@hashgraphonline/standards-sdk`.
-- `src/config.ts`: runtime config and short MCP naming defaults.
-- `scripts/e2e-local-broker.ts`: generic broker-backed smoke verification.
+- `src/mcp.ts`: MCP tool definitions and orchestration
+- `src/delegation.ts`: planner selection, fallback search, and summon helpers
+- `src/broker.ts`: broker client adapter
+- `src/config.ts`: runtime configuration
+- `scripts/e2e-local-broker.ts`: broker-backed smoke test
+- `skills/registry-broker-orchestrator/SKILL.md`: Codex usage guidance
 
 ## Contributing
 
-Please read our [Contributing Guide](./CONTRIBUTING.md) and [Code of Conduct](./CODE_OF_CONDUCT.md) before contributing to this project.
+Please read our [Contributing Guide](./CONTRIBUTING.md) and [Code of Conduct](./CODE_OF_CONDUCT.md) before contributing.
 
-For bugs and feature requests, please use the [issue tracker](https://github.com/hashgraph-online/registry-broker-codex-plugin/issues/new/choose).
+For bugs and feature requests, use the [issue tracker](https://github.com/hashgraph-online/registry-broker-codex-plugin/issues/new/choose).
 
 ## Security
 
-For security concerns, please refer to our [Security Policy](./SECURITY.md).
+For security issues, see [SECURITY.md](./SECURITY.md).
 
 ## Maintainers
 
-See [MAINTAINERS.md](./MAINTAINERS.md) for the current repository maintainers.
+See [MAINTAINERS.md](./MAINTAINERS.md).
 
 ## License
 
