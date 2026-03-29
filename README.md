@@ -16,10 +16,10 @@
 
 This repository exposes four user-facing broker tools inside Codex:
 
-- `registryBroker.delegate`
-- `registryBroker.findAgents`
-- `registryBroker.summonAgent`
-- `registryBroker.sessionHistory`
+- `registryBroker.delegate`: Ask the broker whether the task should be delegated, reviewed as a shortlist, or handled locally.
+- `registryBroker.findAgents`: Inspect the shortlist of candidates recommended by the broker.
+- `registryBroker.summonAgent`: Send a subtask to a broker-selected agent or a known UAID.
+- `registryBroker.sessionHistory`: Recover the broker conversation for a previous session.
 
 The broker returns one of three recommendation states:
 
@@ -50,7 +50,7 @@ If you only need the public Registry Broker skill or CLI outside Codex, use:
 Requirements:
 
 - Node `>=20`
-- pnpm `10`
+- pnpm `>=10`
 
 From the repository root:
 
@@ -134,6 +134,7 @@ pnpm run e2e:broker
 Optional query-driven summon verification:
 
 ```bash
+REGISTRY_BROKER_API_KEY='your-api-key-if-needed' \
 REGISTRY_BROKER_E2E_QUERY_SUMMON_QUERY='query that should resolve to a chatable agent' \
 REGISTRY_BROKER_E2E_QUERY_SUMMON_EXPECT_UAID='uaid:aid:query-selected-agent' \
 REGISTRY_BROKER_E2E_QUERY_SUMMON_EXPECT='expected delegated response substring' \
