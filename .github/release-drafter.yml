@@ -18,32 +18,29 @@ version-resolver:
   minor:
     labels:
       - feature
-      - enhancement
   patch:
     labels:
       - fix
       - bug
-      - docs
       - documentation
       - ci
       - maintenance
       - chore
       - dependencies
       - tests
+      - refactor
   default: patch
 
 categories:
   - title: Features
     labels:
       - feature
-      - enhancement
   - title: Fixes
     labels:
       - fix
       - bug
   - title: Documentation
     labels:
-      - docs
       - documentation
   - title: Developer Experience
     labels:
@@ -52,6 +49,7 @@ categories:
       - chore
       - dependencies
       - tests
+      - refactor
 
 autolabeler:
   - label: documentation
@@ -68,10 +66,3 @@ autolabeler:
     files:
       - "package.json"
       - "pnpm-lock.yaml"
-  - label: enhancement
-    files:
-      - "src/**"
-      - "skills/**"
-      - ".codex-plugin/**"
-      - ".mcp.json"
-      - "assets/**"
