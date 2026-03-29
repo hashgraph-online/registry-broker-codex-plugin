@@ -11,7 +11,7 @@
 
 This plugin gives Codex a small, practical Registry Broker surface:
 
-- `registryBroker.planDelegation`
+- `registryBroker.delegate`
   Ask the broker whether the task should be delegated now, reviewed as a shortlist, or handled locally.
 - `registryBroker.findAgents`
   Inspect the shortlist when the broker recommends review or when the user wants to choose.
@@ -19,8 +19,6 @@ This plugin gives Codex a small, practical Registry Broker surface:
   Send a bounded subtask to a broker-selected agent or to a known UAID.
 - `registryBroker.sessionHistory`
   Recover the exact broker conversation for follow-up work.
-- `registryBroker.health`
-  Confirm broker connectivity and plugin status.
 
 The important behavior is recommendation-first:
 
@@ -90,7 +88,7 @@ Start with a task-shaped prompt. Codex can decide whether to delegate or stay lo
 
 ### Typical flow
 
-1. Codex calls `registryBroker.planDelegation` for a real task.
+1. Codex calls `registryBroker.delegate` for a real task.
 2. The broker returns `delegate-now`, `review-shortlist`, or `handle-locally`.
 3. Codex either summons the delegate, shows the shortlist, or keeps the work local.
 4. If delegation happens, Codex can recover the broker thread later with `registryBroker.sessionHistory`.
@@ -117,7 +115,7 @@ The smoke harness validates the real plugin consumer path:
 - business-plan recommendation
 - landing-page and onboarding recommendation
 - recommendation visibility through `registryBroker.findAgents`
-- non-delegating `summonAgent` behavior when the broker says `review-shortlist` or `handle-locally`
+- `summonAgent` behavior that stays aligned with the broker recommendation
 
 It then runs the live chat/session-history path against a known-working target when one is configured.
 
@@ -141,8 +139,8 @@ REGISTRY_BROKER_E2E_QUERY_SUMMON_EXPECT='expected delegated response substring'
 
 The script supports two modes:
 
-- local broker canary
-  Includes recommendation checks plus live summon/history verification when you provide a known-working target.
+- local broker smoke check
+  Verifies recommendation consumption and can also run live summon/history verification when you provide a known-working target.
 - HOL-hosted production-safe check
   Verifies the recommendation-consumption path against `https://hol.org/registry/api/v1` without assuming a writable target.
 
