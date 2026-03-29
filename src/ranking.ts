@@ -1,6 +1,7 @@
 export interface DelegateCandidate {
   uaid: string;
   label: string;
+  suggestedMessage?: string;
   registry?: string;
   endpoint?: string;
   protocol?: string;
