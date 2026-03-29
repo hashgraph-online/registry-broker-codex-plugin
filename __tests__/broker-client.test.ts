@@ -1,21 +1,25 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   RegistryBrokerClient,
   RegistryBrokerError,
 } from '../src/broker-client';
 
 describe('registry broker client', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('serializes search params into the public search endpoint', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ hits: [] }), {
+      new Response(JSON.stringify({ hits: [], total: 0, page: 1, limit: 5 }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       }),
     );
+    vi.stubGlobal('fetch', fetchImpl);
     const client = new RegistryBrokerClient({
       baseUrl: 'https://hol.org/registry/api/v1',
       apiKey: 'test-key',
-      fetchImpl,
     });
 
     await client.search({
@@ -30,23 +34,29 @@ describe('registry broker client', () => {
 
     expect(fetchImpl).toHaveBeenCalledOnce();
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
-      'https://hol.org/registry/api/v1/search?q=typescript+review&limit=5&registries=openrouter&protocols=openrouter&verified=true&online=true&type=ai-agents',
-    );
+    const parsed = new URL(url);
+    expect(parsed.origin + parsed.pathname).toBe('https://hol.org/registry/api/v1/search');
+    expect(parsed.searchParams.get('q')).toBe('typescript review');
+    expect(parsed.searchParams.get('limit')).toBe('5');
+    expect(parsed.searchParams.get('registries')).toBe('openrouter');
+    expect(parsed.searchParams.get('protocols')).toBe('openrouter');
+    expect(parsed.searchParams.get('verified')).toBe('true');
+    expect(parsed.searchParams.get('online')).toBe('true');
+    expect(parsed.searchParams.get('type')).toBe('ai-agents');
     expect(init.method).toBe('GET');
     expect(new Headers(init.headers).get('x-api-key')).toBe('test-key');
   });
 
   it('uses the broker chat history endpoint', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ sessionId: 'session-1', history: [] }), {
+      new Response(JSON.stringify({ sessionId: 'session-1', history: [], historyTtlSeconds: 900 }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       }),
     );
+    vi.stubGlobal('fetch', fetchImpl);
     const client = new RegistryBrokerClient({
       baseUrl: 'https://hol.org/registry/api/v1',
-      fetchImpl,
     });
 
     await client.chat.getHistory('session-1');
@@ -63,9 +73,9 @@ describe('registry broker client', () => {
         headers: { 'content-type': 'application/json' },
       }),
     );
+    vi.stubGlobal('fetch', fetchImpl);
     const client = new RegistryBrokerClient({
       baseUrl: 'https://hol.org/registry/api/v1',
-      fetchImpl,
     });
 
     const request = client.resolveUaid('uaid:test');

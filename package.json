@@ -51,6 +51,7 @@
   },
   "packageManager": "pnpm@10.24.0",
   "dependencies": {
+    "@hol-org/rb-client": "^0.1.171",
     "@modelcontextprotocol/sdk": "^1.21.1",
     "fastmcp": "^3.22.0",
     "zod": "^4.1.12"
