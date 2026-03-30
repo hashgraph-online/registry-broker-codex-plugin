@@ -1,6 +1,11 @@
 import type { DelegateCandidate } from './ranking';
-
-type JsonRecord = Record<string, unknown>;
+import {
+  isJsonRecord,
+  readBoolean,
+  readNumber,
+  readString,
+  type JsonRecord,
+} from './value-readers';
 
 const plannerActions = new Set(['delegate-now', 'review-shortlist', 'handle-locally']);
 
@@ -275,29 +280,4 @@ function readAgentEndpoint(agent: JsonRecord): string | undefined {
   const connectionInfo =
     mcpServer && isJsonRecord(mcpServer.connectionInfo) ? mcpServer.connectionInfo : undefined;
   return connectionInfo ? readString(connectionInfo.url) : undefined;
-}
-
-function isJsonRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null;
-}
-
-function readString(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function readNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-
-  return undefined;
-}
-
-function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined;
 }

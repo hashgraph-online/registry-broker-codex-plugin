@@ -1,6 +1,11 @@
 import type { PlannerSelection } from './planner';
-
-type JsonRecord = Record<string, unknown>;
+import {
+  isJsonRecord,
+  readJsonRecord,
+  readNumber,
+  readString,
+  type JsonRecord,
+} from './value-readers';
 
 export type TextContent = {
   type: 'text';
@@ -148,25 +153,4 @@ function extractMessageText(entry: JsonRecord): string | undefined {
 function toSingleLine(value: string): string {
   const compact = value.replace(/\s+/g, ' ').trim();
   return compact.length <= 160 ? compact : `${compact.slice(0, 157)}...`;
-}
-
-function readJsonRecord(value: unknown): JsonRecord | undefined {
-  return isJsonRecord(value) ? value : undefined;
-}
-
-function isJsonRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null;
-}
-
-function readString(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function readNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }

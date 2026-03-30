@@ -467,6 +467,13 @@ async function runDelegationConsumptionChecks(
     if (!selectedOpportunityId) {
       throw new Error(`${scenario.name} findAgents did not return a selected opportunity.`);
     }
+    assertStableOpportunityWhenExpected({
+      actualOpportunityId: selectedOpportunityId,
+      expectedOpportunityId: opportunityId,
+      failurePrefix: `${scenario.name} findAgents`,
+      shouldEnforce:
+        Boolean(scenario.expectedOpportunityId) || (!isHolHostedBroker && action === 'delegate-now'),
+    });
     const findAgentsNextAction = readOptionalString(findAgentsPayload.nextAction?.type);
 
     let dryRunNextAction: string | undefined;
@@ -519,6 +526,12 @@ async function runDelegationConsumptionChecks(
       if (!dryRunOpportunityId) {
         throw new Error(`${scenario.name} summonAgent dry run did not return a selected opportunity.`);
       }
+      assertStableOpportunityWhenExpected({
+        actualOpportunityId: dryRunOpportunityId,
+        expectedOpportunityId: selectedOpportunityId,
+        failurePrefix: `${scenario.name} summonAgent dry run`,
+        shouldEnforce: !isHolHostedBroker,
+      });
       if ((dryRunPayload.dispatchPlan?.length ?? 0) === 0) {
         throw new Error(`${scenario.name} summonAgent dry run did not produce a dispatch plan.`);
       }
@@ -567,6 +580,12 @@ async function runDelegationConsumptionChecks(
       if (!summonOpportunityId) {
         throw new Error(`${scenario.name} summonAgent did not return a selected opportunity.`);
       }
+      assertStableOpportunityWhenExpected({
+        actualOpportunityId: summonOpportunityId,
+        expectedOpportunityId: selectedOpportunityId,
+        failurePrefix: `${scenario.name} summonAgent`,
+        shouldEnforce: !isHolHostedBroker,
+      });
       if ((summonPayload.enlisted?.length ?? 0) !== 0) {
         throw new Error(`${scenario.name} summonAgent should not send when recommendation=${action}.`);
       }
@@ -629,6 +648,23 @@ function assertContent(
 
   if (!text.includes(needle)) {
     throw new Error(failureMessage);
+  }
+}
+
+function assertStableOpportunityWhenExpected(input: {
+  actualOpportunityId: string;
+  expectedOpportunityId: string;
+  failurePrefix: string;
+  shouldEnforce: boolean;
+}): void {
+  if (!input.shouldEnforce) {
+    return;
+  }
+
+  if (input.actualOpportunityId !== input.expectedOpportunityId) {
+    throw new Error(
+      `${input.failurePrefix} opportunity drifted: expected ${input.expectedOpportunityId}, received ${input.actualOpportunityId}`,
+    );
   }
 }
 

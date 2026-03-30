@@ -756,18 +756,27 @@ function createSuggestedSummonArgs(input: {
     acceptanceCriteria?: string[];
   };
 }): Record<string, unknown> {
-  return {
+  const args: Record<string, unknown> = {
     task: input.task,
     query: input.query,
     mode: 'best-match',
     limit: 1,
-    ...(input.briefSource.deliverable ? { deliverable: input.briefSource.deliverable } : {}),
-    ...(input.briefSource.constraints ? { constraints: input.briefSource.constraints } : {}),
-    ...(input.briefSource.mustInclude ? { mustInclude: input.briefSource.mustInclude } : {}),
-    ...(input.briefSource.acceptanceCriteria
-      ? { acceptanceCriteria: input.briefSource.acceptanceCriteria }
-      : {}),
   };
+
+  if (input.briefSource.deliverable) {
+    args.deliverable = input.briefSource.deliverable;
+  }
+  if (input.briefSource.constraints) {
+    args.constraints = input.briefSource.constraints;
+  }
+  if (input.briefSource.mustInclude) {
+    args.mustInclude = input.briefSource.mustInclude;
+  }
+  if (input.briefSource.acceptanceCriteria) {
+    args.acceptanceCriteria = input.briefSource.acceptanceCriteria;
+  }
+
+  return args;
 }
 
 function buildFindAgentsNextAction(
