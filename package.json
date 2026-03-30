@@ -38,7 +38,7 @@
   ],
   "author": "HOL <hello@hashgraphonline.com>",
   "license": "Apache-2.0",
-  "homepage": "https://hol.org/registry",
+  "homepage": "https://hol.org/registry/plugins/hol%2Fregistry-broker-codex-plugin",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hashgraph-online/registry-broker-codex-plugin.git"
