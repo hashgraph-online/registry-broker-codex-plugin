@@ -1,3 +1,5 @@
+import { buildDelegationPrompt } from './brief';
+
 export interface DelegateCandidate {
   uaid: string;
   label: string;
@@ -37,19 +39,12 @@ interface AggregateCandidate extends DelegateCandidate {
 }
 
 export function buildDelegateMessage(task: string, candidate: DelegateCandidate): string {
-  const header =
-    candidate.label && candidate.label !== 'agent'
-      ? `${candidate.label} (${candidate.uaid})`
-      : candidate.uaid;
-  return [
-    `Hi ${header},`,
-    '',
-    'Can you help with this focused subtask?',
-    '',
-    task,
-    '',
-    'Please respond with: (1) approach, (2) key pitfalls, (3) concrete steps or code if helpful.',
-  ].join('\n');
+  return buildDelegationPrompt(
+    {
+      task,
+    },
+    candidate,
+  );
 }
 
 export function inferDelegationType(text: string): 'ai-agents' | 'mcp-servers' {

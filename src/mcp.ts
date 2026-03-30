@@ -1,113 +1,57 @@
 import { randomUUID } from 'node:crypto';
 import { FastMCP } from 'fastmcp';
 import type { Context } from 'fastmcp';
-import { z } from 'zod';
+import type { z } from 'zod';
+import { buildDelegationBrief, buildDelegationContext } from './brief';
 import type { BrokerService } from './broker';
 import { RegistryBrokerService } from './broker';
 import { config } from './config';
 import {
   computePlannerLimit,
   computeRankingPoolSize,
-  describePlannerSelection,
-  formatCandidateShortlist,
   findFallbackCandidates,
-  readPlannerAction,
   preferReachableCandidates,
   safeInvoke,
-  selectPlannerCandidates,
   sendSequentially,
   sendToCandidate,
 } from './delegation';
+import {
+  describePlannerSelection,
+  formatCandidateShortlist,
+  readPlannerAction,
+  selectPlannerCandidates,
+} from './planner';
 import {
   buildDelegateMessage,
   inferDelegationType,
   isBrokerAuthError,
   normalizeAgenticFilter,
+  type DelegateCandidate,
 } from './ranking';
+import {
+  delegateSchema,
+  searchSchema,
+  sessionHistorySchema,
+  summonSchema,
+} from './tool-contracts';
+import {
+  buildDelegateNextAction,
+  buildSummonNextAction,
+  describeSessionHistorySummary,
+  resultWithPayload,
+  summarizeSessionHistory,
+  type ToolResult,
+} from './tool-results';
 import { logger } from './logger';
 
-type TextContent = {
-  type: 'text';
-  text: string;
-};
-
-type ToolResult = {
-  content: TextContent[];
-};
-
 type SessionAuth = Record<string, unknown> | undefined;
-
-const workspaceContextSchema = z
-  .object({
-    openFiles: z.array(z.string().min(1)).optional(),
-    modifiedFiles: z.array(z.string().min(1)).optional(),
-    relatedPaths: z.array(z.string().min(1)).optional(),
-    errors: z.array(z.string().min(1)).optional(),
-    commands: z.array(z.string().min(1)).optional(),
-    languages: z.array(z.string().min(1)).optional(),
-  })
-  .optional();
-
-const searchSchema = z.object({
-  query: z.string().min(1),
-  task: z.string().optional(),
-  opportunityId: z.string().min(1).optional(),
-  limit: z.number().int().min(1).max(10).default(5),
-  registries: z.array(z.string().min(1)).optional(),
-  capabilities: z.array(z.string().min(1)).optional(),
-  protocols: z.array(z.string().min(1)).optional(),
-  adapters: z.array(z.string().min(1)).optional(),
-  minTrust: z.number().int().min(0).max(100).optional(),
-  verified: z.boolean().optional(),
-  online: z.boolean().optional(),
-  type: z.enum(['ai-agents', 'mcp-servers']).optional(),
-  workspace: workspaceContextSchema,
-});
-
-const delegateSchema = z.object({
-  task: z.string().min(1),
-  context: z.string().optional(),
-  limit: z.number().int().min(1).max(5).default(3),
-  registries: z.array(z.string().min(1)).optional(),
-  capabilities: z.array(z.string().min(1)).optional(),
-  protocols: z.array(z.string().min(1)).optional(),
-  adapters: z.array(z.string().min(1)).optional(),
-  minTrust: z.number().int().min(0).max(100).optional(),
-  verified: z.boolean().optional(),
-  online: z.boolean().optional(),
-  type: z.enum(['ai-agents', 'mcp-servers']).optional(),
-  workspace: workspaceContextSchema,
-});
-
-const summonSchema = z.object({
-  task: z.string().min(1),
-  query: z.string().optional(),
-  opportunityId: z.string().min(1).optional(),
-  uaid: z.string().min(1).optional(),
-  limit: z.number().int().min(1).max(3).default(3),
-  mode: z.enum(['best-match', 'fallback', 'parallel']).default('fallback'),
-  message: z.string().min(1).optional(),
-  streaming: z.boolean().optional(),
-  registries: z.array(z.string().min(1)).optional(),
-  capabilities: z.array(z.string().min(1)).optional(),
-  protocols: z.array(z.string().min(1)).optional(),
-  adapters: z.array(z.string().min(1)).optional(),
-  minTrust: z.number().int().min(0).max(100).optional(),
-  verified: z.boolean().optional(),
-  online: z.boolean().optional(),
-  type: z.enum(['ai-agents', 'mcp-servers']).optional(),
-  workspace: workspaceContextSchema,
-});
-
-const sessionHistorySchema = z.object({
-  sessionId: z.string().min(1),
-});
 
 const instructions = [
   'For medium or large tasks, use registryBroker.delegate early to discover where specialist help would actually add leverage.',
   'Use registryBroker.summonAgent for bounded subtasks where a broker specialist can add value without taking over the whole user request.',
   'Use registryBroker.findAgents when you need to inspect the shortlist, explain the ranking, or let the user choose the target agent.',
   'Prefer best-match when one strong answer is enough, fallback when resilience matters, and parallel only when comparing approaches is worth the extra latency.',
+  'Use dryRun on registryBroker.summonAgent when you want the exact dispatch plan before sending.',
   'If the user or workflow already knows the UAID, pass it directly and skip discovery.',
   'Treat broker output as delegated input to integrate, verify, and summarize in your own answer.',
 ].join('\n');
@@ -146,11 +90,21 @@ export function createToolDefinitions(
       execute: async (args, context) => {
         const requestId = context?.requestId ?? randomUUID();
         const input = delegateSchema.parse(args);
+        const plannerContext = buildPlannerContext(input);
+        const delegationBrief = buildDelegationBrief({
+          task: input.task,
+          context: input.context,
+          deliverable: input.deliverable,
+          constraints: input.constraints,
+          mustInclude: input.mustInclude,
+          acceptanceCriteria: input.acceptanceCriteria,
+        });
+
         logger.info({ requestId, tool: 'registryBroker.delegate' }, 'tool.invoke');
 
         const result = await service.delegate({
           task: input.task,
-          context: input.context,
+          context: plannerContext,
           workspace: input.workspace,
           limit: input.limit,
           filter: normalizeAgenticFilter({
@@ -167,37 +121,35 @@ export function createToolDefinitions(
 
         logger.info({ requestId, tool: 'registryBroker.delegate' }, 'tool.success');
 
+        const plannerSelection = selectPlannerCandidates(result, {
+          task: input.task,
+          query: plannerContext,
+        });
+        const nextAction = buildDelegateNextAction(plannerSelection, {
+          task: input.task,
+        });
         const opportunityCount =
           typeof result === 'object' &&
           result !== null &&
           Array.isArray((result as { opportunities?: unknown[] }).opportunities)
             ? (result as { opportunities?: unknown[] }).opportunities!.length
             : 0;
-        const recommendationAction =
-          typeof result === 'object' &&
-          result !== null &&
-          typeof (result as { recommendation?: { action?: unknown } }).recommendation?.action ===
-            'string'
-            ? (result as { recommendation: { action: string } }).recommendation.action
-            : undefined;
-        const plannerSelection = selectPlannerCandidates(result, {
-          task: input.task,
-          query: input.context,
-        });
 
         return resultWithPayload(
           [
             `Delegation opportunities: ${opportunityCount}`,
-            recommendationAction ? `Recommendation: ${recommendationAction}` : undefined,
             ...describePlannerSelection(plannerSelection, {
               includeRecommendedCandidate: true,
               includeSelectedOpportunity: true,
-            }).filter((line) => line !== `Recommendation: ${recommendationAction}`),
-          ]
-            .filter(Boolean)
-            .join('\n'),
+            }),
+            `Next action: ${String(nextAction.type)}`,
+          ].join('\n'),
           'registryBroker.delegate',
-          result,
+          {
+            delegationBrief,
+            nextAction,
+            planner: result,
+          },
         );
       },
     },
@@ -212,15 +164,28 @@ export function createToolDefinitions(
       execute: async (args, context) => {
         const requestId = context?.requestId ?? randomUUID();
         const input = searchSchema.parse(args);
-        logger.info({ requestId, tool: 'registryBroker.findAgents' }, 'tool.invoke');
+        const plannerContext = buildPlannerContext(input);
         const task = input.task;
         const query = input.query;
-        const taskText = `${task ?? ''}\n${query}`;
+        const taskText = [task, query, plannerContext].filter((value): value is string => Boolean(value)).join('\n');
+        const delegationBrief = task
+          ? buildDelegationBrief({
+              task,
+              context: input.context,
+              deliverable: input.deliverable,
+              constraints: input.constraints,
+              mustInclude: input.mustInclude,
+              acceptanceCriteria: input.acceptanceCriteria,
+            })
+          : undefined;
+
+        logger.info({ requestId, tool: 'registryBroker.findAgents' }, 'tool.invoke');
+
         const planResult = task
           ? await safeInvoke(() =>
               service.delegate({
                 task,
-                context: query !== task ? query : undefined,
+                context: plannerContext,
                 workspace: input.workspace,
                 limit: computePlannerLimit(input.limit),
                 filter: normalizeAgenticFilter({
@@ -236,6 +201,7 @@ export function createToolDefinitions(
               }),
             )
           : undefined;
+
         const plannerSelection =
           planResult?.value !== undefined
             ? selectPlannerCandidates(planResult.value, {
@@ -257,13 +223,15 @@ export function createToolDefinitions(
           (recommendationAction === 'delegate-now' && plannerSelection.candidates.length === 0) ||
           (recommendationAction === 'review-shortlist' && plannerSelection.candidates.length === 0) ||
           (recommendationAction === 'handle-locally' && plannerSelection.candidates.length === 0);
+
         const shortlist = shouldUsePlannerShortlist
           ? await preferReachableCandidates(
               service,
               plannerSelection.candidates.map((candidate) => ({
                 ...candidate,
                 suggestedMessage:
-                  candidate.suggestedMessage ?? buildDelegateMessage(task ?? query, candidate),
+                  candidate.suggestedMessage ??
+                  buildDelegateMessage(delegationBrief ?? task ?? query, candidate),
               })),
               input.limit,
               Math.min(
@@ -273,7 +241,7 @@ export function createToolDefinitions(
             )
           : shouldFallbackToSearch
             ? await findFallbackCandidates(service, query, {
-                task,
+                task: delegationBrief ?? task,
                 limit: input.limit,
                 registries: input.registries,
                 capabilities: input.capabilities,
@@ -285,10 +253,22 @@ export function createToolDefinitions(
                 type: input.type,
               })
             : [];
+
+        const nextAction = buildFindAgentsNextAction(
+          recommendationAction,
+          shortlist,
+          createSuggestedSummonArgs({
+            task: task ?? query,
+            query,
+            briefSource: input,
+          }),
+        );
+
         logger.info(
           { requestId, tool: 'registryBroker.findAgents', candidates: shortlist.length },
           'tool.success',
         );
+
         return resultWithPayload(
           [
             ...describePlannerSelection(plannerSelection, {
@@ -298,6 +278,7 @@ export function createToolDefinitions(
             recommendationAction === 'handle-locally'
               ? 'Broker recommends local handling for this task.'
               : `Found ${shortlist.length} ranked candidates for ${JSON.stringify(query)}.`,
+            `Next action: ${String(nextAction.type)}`,
             ...(shortlist.length > 0
               ? formatCandidateShortlist(shortlist)
               : recommendationAction === 'handle-locally'
@@ -312,6 +293,8 @@ export function createToolDefinitions(
                 : 'search-fallback',
             query,
             task,
+            delegationBrief,
+            nextAction,
             selectedOpportunity: plannerSelection?.selectedOpportunity,
             opportunities: plannerSelection?.opportunities,
             candidates: shortlist,
@@ -326,7 +309,8 @@ export function createToolDefinitions(
     },
     {
       name: 'registryBroker.summonAgent',
-      description: 'Discover the strongest broker candidate for a subtask, message it, and return the broker session result.',
+      description:
+        'Discover the strongest broker candidate for a subtask, message it, and return the broker session result.',
       parameters: summonSchema,
       annotations: {
         title: 'Registry Broker Summon Agent',
@@ -335,17 +319,27 @@ export function createToolDefinitions(
       execute: async (args, context) => {
         const requestId = context?.requestId ?? randomUUID();
         const input = summonSchema.parse(args);
+        const query = input.query ?? input.task;
+        const plannerContext = buildPlannerContext(input);
+        const delegationBrief = buildDelegationBrief({
+          task: input.task,
+          context: input.context,
+          deliverable: input.deliverable,
+          constraints: input.constraints,
+          mustInclude: input.mustInclude,
+          acceptanceCriteria: input.acceptanceCriteria,
+        });
+        const taskText = [delegationBrief, query].filter((value): value is string => Boolean(value)).join('\n');
+        const desiredCandidateCount = input.mode === 'best-match' ? 1 : input.limit;
+
         logger.info({ requestId, tool: 'registryBroker.summonAgent' }, 'tool.invoke');
 
-        const query = input.query ?? input.task;
-        const taskText = `${input.task}\n${query}`;
-        const desiredCandidateCount = input.mode === 'best-match' ? 1 : input.limit;
         const planResult = input.uaid
           ? undefined
           : await safeInvoke(() =>
               service.delegate({
                 task: input.task,
-                context: query !== input.task ? query : undefined,
+                context: plannerContext,
                 workspace: input.workspace,
                 limit: computePlannerLimit(desiredCandidateCount),
                 filter: normalizeAgenticFilter({
@@ -377,15 +371,23 @@ export function createToolDefinitions(
             (recommendationAction === 'review-shortlist' && plannerSelection.candidates.length === 0));
 
         if (!input.uaid && recommendationAction === 'handle-locally') {
+          const nextAction = buildDelegateNextAction(plannerSelection, {
+            task: input.task,
+            query,
+            mode: input.mode,
+          });
+
           logger.info(
             { requestId, tool: 'registryBroker.summonAgent', recommendationAction },
             'tool.short_circuit',
           );
+
           return resultWithPayload(
             [
               ...describePlannerSelection(plannerSelection, {
                 includeSelectedOpportunity: true,
               }),
+              `Next action: ${String(nextAction.type)}`,
               'No broker summon attempted.',
             ].join('\n'),
             'registryBroker.summonAgent',
@@ -393,6 +395,9 @@ export function createToolDefinitions(
               strategy: 'broker-plan',
               query,
               task: input.task,
+              delegationBrief,
+              dryRun: input.dryRun,
+              nextAction,
               mode: input.mode,
               selectedOpportunity: plannerSelection?.selectedOpportunity,
               opportunities: plannerSelection?.opportunities,
@@ -413,10 +418,6 @@ export function createToolDefinitions(
           plannerSelection &&
           plannerSelection.candidates.length > 0
         ) {
-          logger.info(
-            { requestId, tool: 'registryBroker.summonAgent', recommendationAction },
-            'tool.short_circuit',
-          );
           const shortlist = await preferReachableCandidates(
             service,
             plannerSelection.candidates,
@@ -426,12 +427,27 @@ export function createToolDefinitions(
               plannerSelection.candidates.length,
             ),
           );
+          const nextAction = buildFindAgentsNextAction(
+            recommendationAction,
+            shortlist,
+            createSuggestedSummonArgs({
+              task: input.task,
+              query,
+              briefSource: input,
+            }),
+          );
+
+          logger.info(
+            { requestId, tool: 'registryBroker.summonAgent', recommendationAction },
+            'tool.short_circuit',
+          );
 
           return resultWithPayload(
             [
               ...describePlannerSelection(plannerSelection, {
                 includeSelectedOpportunity: true,
               }),
+              `Next action: ${String(nextAction.type)}`,
               'Review these broker candidates before summoning:',
               ...formatCandidateShortlist(shortlist),
             ].join('\n'),
@@ -440,6 +456,9 @@ export function createToolDefinitions(
               strategy: 'broker-plan',
               query,
               task: input.task,
+              delegationBrief,
+              dryRun: input.dryRun,
+              nextAction,
               mode: input.mode,
               selectedOpportunity: plannerSelection.selectedOpportunity,
               opportunities: plannerSelection.opportunities,
@@ -459,7 +478,7 @@ export function createToolDefinitions(
           : plannerSelection && plannerSelection.candidates.length > 0 && !shouldFallbackToSearch
             ? plannerSelection.candidates
             : await findFallbackCandidates(service, query, {
-                task: input.task,
+                task: delegationBrief,
                 limit: desiredCandidateCount,
                 registries: input.registries,
                 capabilities: input.capabilities,
@@ -477,7 +496,10 @@ export function createToolDefinitions(
               service,
               rankedCandidates,
               desiredCandidateCount,
-              Math.min(computeRankingPoolSize(taskText, desiredCandidateCount), rankedCandidates.length),
+              Math.min(
+                computeRankingPoolSize(taskText, desiredCandidateCount),
+                rankedCandidates.length,
+              ),
             );
 
         if (candidates.length === 0) {
@@ -488,9 +510,7 @@ export function createToolDefinitions(
                 includeSelectedOpportunity: true,
               }),
               `No broker candidates were found for ${JSON.stringify(query)}.`,
-            ]
-              .filter(Boolean)
-              .join('\n'),
+            ].join('\n'),
             'registryBroker.summonAgent',
             {
               strategy:
@@ -499,6 +519,8 @@ export function createToolDefinitions(
                   : 'search-fallback',
               query,
               task: input.task,
+              delegationBrief,
+              dryRun: input.dryRun,
               candidates: [],
               selectedOpportunity: plannerSelection?.selectedOpportunity,
               opportunities: plannerSelection?.opportunities,
@@ -511,16 +533,90 @@ export function createToolDefinitions(
           );
         }
 
-        const chosen = input.mode === 'best-match' ? candidates.slice(0, 1) : candidates.slice(0, input.limit);
+        const chosen =
+          input.mode === 'best-match' ? candidates.slice(0, 1) : candidates.slice(0, input.limit);
+        const dispatchPlan = chosen.map((candidate) => ({
+          uaid: candidate.uaid,
+          label: candidate.label,
+          message:
+            input.message ??
+            candidate.suggestedMessage ??
+            buildDelegateMessage(delegationBrief, candidate),
+        }));
+
+        if (input.dryRun) {
+          const nextAction = buildSummonNextAction([], true);
+
+          logger.info({ requestId, tool: 'registryBroker.summonAgent', dryRun: true }, 'tool.success');
+
+          return resultWithPayload(
+            [
+              ...describePlannerSelection(plannerSelection, {
+                includeRecommendedCandidate: recommendationAction === 'delegate-now',
+                includeSelectedOpportunity: true,
+              }),
+              `Next action: ${String(nextAction.type)}`,
+              'Dry run only. No broker message sent.',
+              ...dispatchPlan.map(
+                (entry, index) => `${index + 1}. ${entry.label} — ${entry.uaid} (preview)`,
+              ),
+            ].join('\n'),
+            'registryBroker.summonAgent',
+            {
+              strategy:
+                plannerSelection && plannerSelection.candidates.length > 0 && !shouldFallbackToSearch
+                  ? 'broker-plan'
+                  : input.uaid
+                    ? 'direct-uaid'
+                    : 'search-fallback',
+              query,
+              task: input.task,
+              delegationBrief,
+              dryRun: true,
+              nextAction,
+              mode: input.mode,
+              selectedOpportunity: plannerSelection?.selectedOpportunity,
+              opportunities: plannerSelection?.opportunities,
+              candidates,
+              dispatchPlan,
+              enlisted: [],
+              planner: planResult
+                ? planResult.error
+                  ? { error: planResult.error }
+                  : planResult.value
+                : undefined,
+            },
+          );
+        }
+
         const enlisted =
           input.mode === 'parallel'
-            ? await Promise.all(chosen.map((candidate) => sendToCandidate(service, candidate, input)))
-            : await sendSequentially(service, chosen, input);
+            ? await Promise.all(
+                chosen.map((candidate) =>
+                  sendToCandidate(service, candidate, {
+                    task: input.task,
+                    brief: delegationBrief,
+                    message: input.message,
+                    streaming: input.streaming,
+                    mode: input.mode,
+                    limit: input.limit,
+                  }),
+                ),
+              )
+            : await sendSequentially(service, chosen, {
+                task: input.task,
+                brief: delegationBrief,
+                message: input.message,
+                streaming: input.streaming,
+                mode: input.mode,
+                limit: input.limit,
+              });
 
         const successCount = enlisted.filter((entry) => entry.status === 'ok').length;
         const authBlocked = enlisted.some(
           (entry) => entry.status === 'error' && entry.error && isBrokerAuthError(entry.error),
         );
+        const nextAction = buildSummonNextAction(enlisted, false);
 
         logger.info(
           {
@@ -541,6 +637,7 @@ export function createToolDefinitions(
             `Summon mode: ${input.mode}`,
             `Candidates considered: ${candidates.length}`,
             `Messages attempted: ${enlisted.length}, succeeded: ${successCount}`,
+            `Next action: ${String(nextAction.type)}`,
             authBlocked
               ? 'Broker auth is required for chat. Set REGISTRY_BROKER_API_KEY and retry.'
               : undefined,
@@ -561,10 +658,14 @@ export function createToolDefinitions(
                   : 'search-fallback',
             query,
             task: input.task,
+            delegationBrief,
+            dryRun: false,
+            nextAction,
             mode: input.mode,
             selectedOpportunity: plannerSelection?.selectedOpportunity,
             opportunities: plannerSelection?.opportunities,
             candidates,
+            dispatchPlan,
             enlisted,
             planner: planResult
               ? planResult.error
@@ -588,12 +689,18 @@ export function createToolDefinitions(
         const input = sessionHistorySchema.parse(args);
         logger.info({ requestId, tool: 'registryBroker.sessionHistory' }, 'tool.invoke');
         const history = await service.getHistory(input.sessionId);
+        const summary = summarizeSessionHistory(history);
         logger.info({ requestId, tool: 'registryBroker.sessionHistory' }, 'tool.success');
+
         return resultWithPayload(
-          `Fetched history for session ${input.sessionId}.`,
+          [
+            `Fetched history for session ${input.sessionId}.`,
+            ...describeSessionHistorySummary(summary),
+          ].join('\n'),
           'registryBroker.sessionHistory',
           {
             sessionId: input.sessionId,
+            summary,
             history,
           },
         );
@@ -623,17 +730,71 @@ export function createMcpServer(service: BrokerService = new RegistryBrokerServi
   return server;
 }
 
-function resultWithPayload(summary: string, label: string, payload: unknown): ToolResult {
+function buildPlannerContext(input: {
+  context?: string;
+  deliverable?: string;
+  constraints?: string[];
+  mustInclude?: string[];
+  acceptanceCriteria?: string[];
+}): string | undefined {
+  return buildDelegationContext({
+    context: input.context,
+    deliverable: input.deliverable,
+    constraints: input.constraints,
+    mustInclude: input.mustInclude,
+    acceptanceCriteria: input.acceptanceCriteria,
+  });
+}
+
+function createSuggestedSummonArgs(input: {
+  task: string;
+  query: string;
+  briefSource: {
+    deliverable?: string;
+    constraints?: string[];
+    mustInclude?: string[];
+    acceptanceCriteria?: string[];
+  };
+}): Record<string, unknown> {
   return {
-    content: [
-      {
-        type: 'text',
-        text: summary,
+    task: input.task,
+    query: input.query,
+    mode: 'best-match',
+    limit: 1,
+    ...(input.briefSource.deliverable ? { deliverable: input.briefSource.deliverable } : {}),
+    ...(input.briefSource.constraints ? { constraints: input.briefSource.constraints } : {}),
+    ...(input.briefSource.mustInclude ? { mustInclude: input.briefSource.mustInclude } : {}),
+    ...(input.briefSource.acceptanceCriteria
+      ? { acceptanceCriteria: input.briefSource.acceptanceCriteria }
+      : {}),
+  };
+}
+
+function buildFindAgentsNextAction(
+  recommendationAction: ReturnType<typeof readPlannerAction>,
+  shortlist: DelegateCandidate[],
+  suggestedArgs: Record<string, unknown>,
+): Record<string, unknown> {
+  const lead = shortlist[0];
+  if (lead) {
+    return {
+      type:
+        recommendationAction === 'review-shortlist' ? 'review-shortlist' : 'summon-agent',
+      tool: 'registryBroker.summonAgent',
+      suggestedArgs: {
+        ...suggestedArgs,
+        uaid: lead.uaid,
       },
-      {
-        type: 'text',
-        text: `${label}:\n${JSON.stringify(payload, null, 2)}`,
-      },
-    ],
+    };
+  }
+
+  if (recommendationAction === 'handle-locally') {
+    return {
+      type: 'handle-locally',
+    };
+  }
+
+  return {
+    type: 'inspect-results',
   };
 }

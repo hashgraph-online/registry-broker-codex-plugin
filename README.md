@@ -24,8 +24,8 @@ This repository exposes four user-facing broker tools inside Codex:
 
 - `registryBroker.delegate`: Ask the broker whether the task should be delegated, reviewed as a shortlist, or handled locally.
 - `registryBroker.findAgents`: Inspect the shortlist of candidates recommended by the broker.
-- `registryBroker.summonAgent`: Send a subtask to a broker-selected agent or a known UAID.
-- `registryBroker.sessionHistory`: Recover the broker conversation for a previous session.
+- `registryBroker.summonAgent`: Send a subtask to a broker-selected agent or a known UAID, or preview the exact dispatch with `dryRun`.
+- `registryBroker.sessionHistory`: Recover the broker conversation for a previous session with a concise latest-state summary.
 
 The broker returns one of three recommendation states:
 
@@ -95,10 +95,18 @@ Supported public configuration:
 
 Start with a task-shaped prompt. Codex can call `registryBroker.delegate` first, then decide whether to shortlist or summon.
 
+For higher-stakes delegation, you can also pass a structured brief:
+
+- `deliverable`
+- `constraints`
+- `mustInclude`
+- `acceptanceCriteria`
+
 Example prompts:
 
 - `Delegate this bug investigation and return a fix plan.`
 - `Find broker candidates for this TypeScript verification task.`
+- `Dry-run the broker handoff for this patch review before sending it.`
 - `Write a business plan and GTM outline for this product.`
 - `Design a landing page and onboarding direction for this feature.`
 - `Research the market and compare the strongest alternatives.`
@@ -109,6 +117,8 @@ Typical flow:
 2. The broker returns `delegate-now`, `review-shortlist`, or `handle-locally`.
 3. Codex either calls `registryBroker.summonAgent`, shows `registryBroker.findAgents`, or keeps working locally.
 4. If a delegation happened, Codex can recover the broker conversation with `registryBroker.sessionHistory`.
+
+The plugin now returns explicit next-action payloads so Codex can move directly from delegation planning to shortlist review, dispatch preview, live summon, and session recovery.
 
 ![Summon workflow](https://raw.githubusercontent.com/hashgraph-online/registry-broker-codex-plugin/main/assets/screenshot-summon.png)
 
@@ -151,13 +161,19 @@ The smoke harness supports:
 
 - local broker verification when you provide a known-working target
 - HOL-hosted recommendation-consumption verification against `https://hol.org/registry/api/v1`
+- dry-run summon verification with structured delegation briefs
+- session-history summaries for follow-up work
 
 ## Repository layout
 
 - `src/mcp.ts`: MCP tool definitions and orchestration
+- `src/brief.ts`: structured delegation brief rendering
 - `src/delegation.ts`: planner selection, fallback search, and summon helpers
+- `src/planner.ts`: planner selection and shortlist formatting helpers
 - `src/broker.ts`: broker client adapter
 - `src/config.ts`: runtime configuration
+- `src/tool-contracts.ts`: shared MCP schemas
+- `src/tool-results.ts`: next-action and session-history summaries
 - `scripts/e2e-local-broker.ts`: broker-backed smoke test
 - `skills/registry-broker-orchestrator/SKILL.md`: Codex usage guidance
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { createToolDefinitions } from '../src/mcp';
 
 function createService() {
@@ -190,6 +191,34 @@ describe('registry broker mcp tools', () => {
     expect(text).toContain('Selected opportunity: research-specialist');
     expect(text).toContain('research-specialist');
     expect(service.delegate).toHaveBeenCalledOnce();
+  });
+
+  it('folds structured delegation fields into planner context', async () => {
+    const service = createService();
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.delegate',
+    );
+
+    expect(tool).toBeDefined();
+
+    await tool!.execute({
+      task: 'Review this TypeScript patch.',
+      deliverable: 'Return a concise review plus fix plan.',
+      constraints: ['Do not change public APIs.'],
+      mustInclude: ['Root cause', 'regression risks'],
+      acceptanceCriteria: ['Cites the highest-risk issue first'],
+      limit: 2,
+    });
+
+    expect(service.delegate).toHaveBeenCalledWith({
+      task: 'Review this TypeScript patch.',
+      context: expect.stringContaining('Deliverable:'),
+      workspace: undefined,
+      limit: 2,
+      filter: undefined,
+    });
+    expect(service.delegate.mock.calls[0]?.[0].context).toContain('Must include:');
+    expect(service.delegate.mock.calls[0]?.[0].context).toContain('Acceptance criteria:');
   });
 
   it('passes canonical delegation filters to the broker planner', async () => {
@@ -418,6 +447,34 @@ describe('registry broker mcp tools', () => {
     });
   });
 
+  it('supports summon dry-run previews without sending a broker message', async () => {
+    const service = createService();
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      task: 'Review this TypeScript patch.',
+      query: 'test agent',
+      deliverable: 'Return the top risk and a one-step fix plan.',
+      mustInclude: ['Root cause'],
+      dryRun: true,
+      mode: 'best-match',
+      limit: 1,
+    });
+
+    const text = result.content.map((entry) => entry.text).join('\n');
+    expect(text).toContain('Dry run only. No broker message sent.');
+    expect(service.sendMessage).not.toHaveBeenCalled();
+
+    const payload = extractToolPayload(result, 'registryBroker.summonAgent');
+    expect(payload.dryRun).toBe(true);
+    expect(payload.dispatchPlan?.[0]?.uaid).toBe('uaid:test-agent');
+    expect(payload.dispatchPlan?.[0]?.message).toContain('Must include:');
+  });
+
   it('surfaces broker review-shortlist guidance in findAgents without local reranking drift', async () => {
     const service = createService();
     service.delegate.mockResolvedValue({
@@ -573,6 +630,96 @@ describe('registry broker mcp tools', () => {
     expect(service.agenticSearch).not.toHaveBeenCalled();
   });
 
+  it('returns next-action hints for shortlist review and successful summon flows', async () => {
+    const reviewService = createService();
+    reviewService.delegate.mockResolvedValue({
+      summary: 'Delegation plan',
+      recommendation: {
+        action: 'review-shortlist',
+        opportunityId: 'design-specialist',
+      },
+      opportunities: [
+        {
+          id: 'design-specialist',
+          candidates: [
+            {
+              uaid: 'uaid:landing-page-agent',
+              label: 'Landing Page Agent',
+            },
+          ],
+        },
+      ],
+    });
+    const reviewTool = createToolDefinitions(reviewService).find(
+      (entry) => entry.name === 'registryBroker.findAgents',
+    );
+
+    expect(reviewTool).toBeDefined();
+
+    const shortlistResult = await reviewTool!.execute({
+      query: 'landing page onboarding',
+      task: 'Design a landing page and onboarding UX for this feature.',
+      limit: 1,
+    });
+    const shortlistPayload = extractToolPayload(shortlistResult, 'registryBroker.findAgents');
+    expect(shortlistPayload.nextAction?.type).toBe('review-shortlist');
+    expect(shortlistPayload.nextAction?.tool).toBe('registryBroker.summonAgent');
+    expect(shortlistPayload.nextAction?.suggestedArgs?.uaid).toBe('uaid:landing-page-agent');
+
+    const summonService = createService();
+    const summonTool = createToolDefinitions(summonService).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(summonTool).toBeDefined();
+
+    const summonResult = await summonTool!.execute({
+      task: 'Ask for a delegated answer.',
+      mode: 'best-match',
+      limit: 1,
+    });
+    const summonPayload = extractToolPayload(summonResult, 'registryBroker.summonAgent');
+    expect(summonPayload.nextAction?.type).toBe('recover-session');
+    expect(summonPayload.nextAction?.tool).toBe('registryBroker.sessionHistory');
+    expect(summonPayload.nextAction?.sessionIds).toEqual(['session-1']);
+  });
+
+  it('summarizes broker session history for follow-up work', async () => {
+    const service = createService();
+    service.getHistory.mockResolvedValue({
+      sessionId: 'session-1',
+      history: [
+        {
+          role: 'user',
+          content: 'Please review this patch.',
+        },
+        {
+          role: 'assistant',
+          content: 'Top risk: stale planner fallback. Fix src/mcp.ts and rerun tests.',
+        },
+      ],
+      historyTtlSeconds: 900,
+    });
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.sessionHistory',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      sessionId: 'session-1',
+    });
+
+    const text = result.content.map((entry) => entry.text).join('\n');
+    expect(text).toContain('History messages: 2');
+    expect(text).toContain('Latest reply: Top risk: stale planner fallback.');
+
+    const payload = extractToolPayload(result, 'registryBroker.sessionHistory');
+    expect(payload.summary?.messageCount).toBe(2);
+    expect(payload.summary?.latestRole).toBe('assistant');
+    expect(payload.summary?.historyTtlSeconds).toBe(900);
+  });
+
   it('falls back to local discovery when planner returns no summon candidates', async () => {
     const service = createService();
     service.delegate.mockResolvedValue({
@@ -663,3 +810,51 @@ describe('registry broker mcp tools', () => {
     });
   });
 });
+
+const extractedToolPayloadSchema = z.object({
+  dryRun: z.boolean().optional(),
+  dispatchPlan: z
+    .array(
+      z.object({
+        uaid: z.string().optional(),
+        message: z.string().optional(),
+      }),
+    )
+    .optional(),
+  nextAction: z
+    .object({
+      type: z.string().optional(),
+      tool: z.string().optional(),
+      suggestedArgs: z
+        .object({
+          uaid: z.string().optional(),
+        })
+        .optional(),
+      sessionIds: z.array(z.string()).optional(),
+    })
+    .optional(),
+  summary: z
+    .object({
+      messageCount: z.number().optional(),
+      latestRole: z.string().optional(),
+      historyTtlSeconds: z.number().optional(),
+    })
+    .optional(),
+});
+
+type ExtractedToolPayload = z.infer<typeof extractedToolPayloadSchema>;
+
+function extractToolPayload(
+  result: Awaited<
+    ReturnType<
+      NonNullable<ReturnType<typeof createToolDefinitions>[number]['execute']>
+    >
+  >,
+  label: string,
+): ExtractedToolPayload {
+  const payloadText = result.content.find((entry) => entry.text.startsWith(`${label}:\n`))?.text;
+  expect(payloadText).toBeDefined();
+  return extractedToolPayloadSchema.parse(
+    JSON.parse(payloadText!.slice(label.length + 2)),
+  );
+}
