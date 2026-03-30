@@ -23,6 +23,6 @@ jobs:
 
     steps:
       - name: Apply release labels
-        uses: release-drafter/release-drafter/autolabeler@v7
+        uses: release-drafter/release-drafter/autolabeler@139054aeaa9adc52ab36ddf67437541f039b88e2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
