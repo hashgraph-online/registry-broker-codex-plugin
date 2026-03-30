@@ -7,8 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 const defaultPingAgentUaid =
   'uaid:aid:2vdWUw1Qd26QtfXomHZhSJb6x4Pd3r5MTYr82v9A15ua2ja8TiVTWZEFAg1rQ37gpW';
-const brokerBaseUrl = readEnvOrDefault('REGISTRY_BROKER_API_URL', 'http://127.0.0.1:4000');
 const holHostedBrokerBaseUrl = 'https://hol.org/registry/api/v1';
+const brokerBaseUrl = readEnvOrDefault('REGISTRY_BROKER_API_URL', holHostedBrokerBaseUrl);
 const isHolHostedBroker = brokerBaseUrl === holHostedBrokerBaseUrl;
 const brokerApiKey = readOptionalEnv('REGISTRY_BROKER_API_KEY');
 const registries = readOptionalListEnv('REGISTRY_BROKER_E2E_REGISTRIES');
@@ -189,6 +189,10 @@ async function runDirectBrokerVerification(
     matchedUaid: string;
     matchedLabel?: string;
   };
+  dryRun: {
+    uaid: string;
+    nextAction?: string;
+  };
   querySummon?: {
     query: string;
     sessionId: string;
@@ -211,41 +215,43 @@ async function runDirectBrokerVerification(
     },
   });
   const delegationPlanPayload = extractToolPayload<{
-    recommendation?: {
-      action?: string;
-      opportunityId?: string;
-      candidate?: {
-        uaid?: string;
-        label?: string;
+    planner?: {
+      recommendation?: {
+        action?: string;
+        opportunityId?: string;
+        candidate?: {
+          uaid?: string;
+          label?: string;
+        };
       };
-    };
-    opportunities?: Array<{
-      candidates?: Array<{
-        uaid?: string;
-        label?: string;
+      opportunities?: Array<{
+        candidates?: Array<{
+          uaid?: string;
+          label?: string;
+        }>;
       }>;
-    }>;
+    };
   }>(delegationPlanResult, 'registryBroker.delegate');
   const plannedCandidate =
-    (delegationPlanPayload.recommendation?.candidate?.uaid === delegationPlanExpectedUaid
-      ? delegationPlanPayload.recommendation.candidate
+    (delegationPlanPayload.planner?.recommendation?.candidate?.uaid === delegationPlanExpectedUaid
+      ? delegationPlanPayload.planner.recommendation.candidate
       : undefined) ??
-    delegationPlanPayload.opportunities
+    delegationPlanPayload.planner?.opportunities
       ?.flatMap((opportunity) => opportunity.candidates ?? [])
       .find((candidate) => candidate.uaid === delegationPlanExpectedUaid);
   if (!plannedCandidate) {
     throw new Error(
-      `delegate did not return the expected candidate payload. expected=${delegationPlanExpectedUaid} recommendation=${String(delegationPlanPayload.recommendation?.candidate?.uaid)} candidates=${JSON.stringify(
-        delegationPlanPayload.opportunities?.flatMap((opportunity) => opportunity.candidates ?? []).map((candidate) => candidate.uaid) ?? [],
+      `delegate did not return the expected candidate payload. expected=${delegationPlanExpectedUaid} recommendation=${String(delegationPlanPayload.planner?.recommendation?.candidate?.uaid)} candidates=${JSON.stringify(
+        delegationPlanPayload.planner?.opportunities?.flatMap((opportunity) => opportunity.candidates ?? []).map((candidate) => candidate.uaid) ?? [],
       )}`,
     );
   }
-  if (delegationPlanPayload.recommendation?.action !== delegationPlanRecommendationAction) {
+  if (delegationPlanPayload.planner?.recommendation?.action !== delegationPlanRecommendationAction) {
     throw new Error(
-      `delegate recommendation action mismatch: expected ${delegationPlanRecommendationAction}, received ${String(delegationPlanPayload.recommendation?.action)}`,
+      `delegate recommendation action mismatch: expected ${delegationPlanRecommendationAction}, received ${String(delegationPlanPayload.planner?.recommendation?.action)}`,
     );
   }
-  if (delegationPlanPayload.recommendation?.candidate?.uaid !== delegationPlanExpectedUaid) {
+  if (delegationPlanPayload.planner?.recommendation?.candidate?.uaid !== delegationPlanExpectedUaid) {
     throw new Error('delegate did not recommend the expected candidate.');
   }
 
@@ -279,6 +285,44 @@ async function runDirectBrokerVerification(
   const querySummonSessionId = querySummonQuery
     ? await runQuerySummonCheck(client)
     : undefined;
+  const dryRunResult = await client.callTool({
+    name: 'registryBroker.summonAgent',
+    arguments: {
+      task: 'Verify broker delegation to a caller-specified target agent.',
+      uaid: brokerTargetUaid,
+      dryRun: true,
+      limit: 1,
+      mode: 'best-match',
+      deliverable: 'Preview the exact outbound prompt before sending.',
+      mustInclude: ['The target UAID'],
+      acceptanceCriteria: ['Does not open a broker session'],
+    },
+  });
+  assertContent(
+    dryRunResult,
+    'Dry run only. No broker message sent.',
+    'summonAgent dry run did not stay non-destructive',
+  );
+  const dryRunPayload = extractToolPayload<{
+    dryRun?: boolean;
+    nextAction?: {
+      type?: string;
+    };
+    dispatchPlan?: Array<{
+      uaid?: string;
+      message?: string;
+    }>;
+  }>(dryRunResult, 'registryBroker.summonAgent');
+  if (dryRunPayload.dryRun !== true) {
+    throw new Error('summonAgent dry run did not mark the payload as dryRun=true.');
+  }
+  if (dryRunPayload.dispatchPlan?.[0]?.uaid !== brokerTargetUaid) {
+    throw new Error('summonAgent dry run did not preserve the direct UAID target.');
+  }
+  if (!dryRunPayload.dispatchPlan?.[0]?.message?.includes('Acceptance criteria:')) {
+    throw new Error('summonAgent dry run did not render the structured brief.');
+  }
+
   const summonResult = await client.callTool({
     name: 'registryBroker.summonAgent',
     arguments: {
@@ -322,7 +366,7 @@ async function runDirectBrokerVerification(
   return {
     delegationPlan: {
       task: discoveryTask,
-      recommendationAction: delegationPlanPayload.recommendation?.action,
+      recommendationAction: delegationPlanPayload.planner?.recommendation?.action,
       matchedUaid: delegationPlanExpectedUaid,
       matchedLabel: plannedCandidate.label,
     },
@@ -337,6 +381,10 @@ async function runDirectBrokerVerification(
           sessionId: querySummonSessionId,
         }
       : undefined,
+    dryRun: {
+      uaid: brokerTargetUaid,
+      nextAction: dryRunPayload.nextAction?.type,
+    },
     uaid: brokerTargetUaid,
     sessionId,
   };
@@ -350,6 +398,7 @@ async function runDelegationConsumptionChecks(
     action: string;
     opportunityId: string;
     candidateLabel?: string;
+    dryRunNextAction?: string;
   }>
 > {
   const results: Array<{
@@ -357,16 +406,17 @@ async function runDelegationConsumptionChecks(
     action: string;
     opportunityId: string;
     candidateLabel?: string;
+    dryRunNextAction?: string;
   }> = [];
 
   for (const scenario of delegationConsumptionScenarios) {
     const planPayload = await callDelegationPlan(client, scenario.task, scenario.context);
     const action = readRequiredString(
-      planPayload.recommendation?.action,
+      planPayload.planner?.recommendation?.action,
       `${scenario.name} delegate recommendation action`,
     );
     const opportunityId = readRequiredString(
-      planPayload.recommendation?.opportunityId,
+      planPayload.planner?.recommendation?.opportunityId,
       `${scenario.name} delegate opportunityId`,
     );
 
@@ -386,17 +436,24 @@ async function runDelegationConsumptionChecks(
       arguments: {
         task: scenario.task,
         query: scenario.context,
+        context: scenario.context,
         limit: 3,
+        deliverable: 'Return the next specialist action plus a concrete output shape.',
+        mustInclude: ['selected opportunity', 'recommended action'],
+        acceptanceCriteria: ['keeps the next tool choice obvious'],
         workspace: delegationPlanWorkspace,
         ...(registries ? { registries } : {}),
       },
     });
     assertContent(
       findAgentsResult,
-      `Recommendation: ${action}`,
-      `${scenario.name} findAgents did not surface the broker recommendation`,
+      'Recommendation:',
+      `${scenario.name} findAgents did not surface a broker recommendation`,
     );
     const findAgentsPayload = extractToolPayload<{
+      nextAction?: {
+        type?: string;
+      };
       selectedOpportunity?: { id?: string };
       planner?: {
         recommendation?: {
@@ -407,28 +464,106 @@ async function runDelegationConsumptionChecks(
     const selectedOpportunityId =
       readOptionalString(findAgentsPayload.selectedOpportunity?.id) ??
       readOptionalString(findAgentsPayload.planner?.recommendation?.opportunityId);
-    if (selectedOpportunityId !== opportunityId) {
-      throw new Error(
-        `${scenario.name} findAgents opportunity drifted: expected ${opportunityId}, received ${String(selectedOpportunityId)}`,
+    if (!selectedOpportunityId) {
+      throw new Error(`${scenario.name} findAgents did not return a selected opportunity.`);
+    }
+    assertStableOpportunityWhenExpected({
+      actualOpportunityId: selectedOpportunityId,
+      expectedOpportunityId: opportunityId,
+      failurePrefix: `${scenario.name} findAgents`,
+      shouldEnforce:
+        Boolean(scenario.expectedOpportunityId) || (!isHolHostedBroker && action === 'delegate-now'),
+    });
+    const findAgentsNextAction = readOptionalString(findAgentsPayload.nextAction?.type);
+
+    let dryRunNextAction: string | undefined;
+
+    if (findAgentsNextAction === 'summon-agent') {
+      const dryRunResult = await client.callTool({
+        name: 'registryBroker.summonAgent',
+        arguments: {
+          task: scenario.task,
+          query: scenario.context,
+          context: scenario.context,
+          limit: 1,
+          mode: 'best-match',
+          dryRun: true,
+          deliverable: 'Return the next specialist action plus a concrete output shape.',
+          mustInclude: ['selected opportunity', 'recommended action'],
+          acceptanceCriteria: ['keeps the next tool choice obvious'],
+          workspace: delegationPlanWorkspace,
+          ...(registries ? { registries } : {}),
+        },
+      });
+      assertContent(
+        dryRunResult,
+        'Dry run only. No broker message sent.',
+        `${scenario.name} summonAgent dry run did not stay non-destructive`,
       );
+      const dryRunPayload = extractToolPayload<{
+        dryRun?: boolean;
+        dispatchPlan?: Array<{
+          uaid?: string;
+          message?: string;
+        }>;
+        nextAction?: {
+          type?: string;
+        };
+        selectedOpportunity?: { id?: string };
+        planner?: {
+          recommendation?: {
+            opportunityId?: string;
+          };
+        };
+      }>(dryRunResult, 'registryBroker.summonAgent');
+      const dryRunOpportunityId =
+        readOptionalString(dryRunPayload.selectedOpportunity?.id) ??
+        readOptionalString(dryRunPayload.planner?.recommendation?.opportunityId);
+
+      if (dryRunPayload.dryRun !== true) {
+        throw new Error(`${scenario.name} summonAgent dry run payload was not marked dryRun=true.`);
+      }
+      if (!dryRunOpportunityId) {
+        throw new Error(`${scenario.name} summonAgent dry run did not return a selected opportunity.`);
+      }
+      assertStableOpportunityWhenExpected({
+        actualOpportunityId: dryRunOpportunityId,
+        expectedOpportunityId: selectedOpportunityId,
+        failurePrefix: `${scenario.name} summonAgent dry run`,
+        shouldEnforce: !isHolHostedBroker,
+      });
+      if ((dryRunPayload.dispatchPlan?.length ?? 0) === 0) {
+        throw new Error(`${scenario.name} summonAgent dry run did not produce a dispatch plan.`);
+      }
+      if (!dryRunPayload.dispatchPlan?.[0]?.message?.includes('Acceptance criteria:')) {
+        throw new Error(
+          `${scenario.name} summonAgent dry run did not include the structured delegation brief.`,
+        );
+      }
+
+      dryRunNextAction = readOptionalString(dryRunPayload.nextAction?.type);
     }
 
-    if (action !== 'delegate-now') {
+    if (findAgentsNextAction !== 'summon-agent') {
       const summonResult = await client.callTool({
         name: 'registryBroker.summonAgent',
         arguments: {
           task: scenario.task,
           query: scenario.context,
+          context: scenario.context,
           limit: 1,
           mode: 'best-match',
+          deliverable: 'Return the next specialist action plus a concrete output shape.',
+          mustInclude: ['selected opportunity', 'recommended action'],
+          acceptanceCriteria: ['keeps the next tool choice obvious'],
           workspace: delegationPlanWorkspace,
           ...(registries ? { registries } : {}),
         },
       });
       assertContent(
         summonResult,
-        `Recommendation: ${action}`,
-        `${scenario.name} summonAgent did not preserve the broker recommendation`,
+        'Recommendation:',
+        `${scenario.name} summonAgent did not preserve a broker recommendation`,
       );
       const summonPayload = extractToolPayload<{
         enlisted?: unknown[];
@@ -442,11 +577,15 @@ async function runDelegationConsumptionChecks(
       const summonOpportunityId =
         readOptionalString(summonPayload.selectedOpportunity?.id) ??
         readOptionalString(summonPayload.planner?.recommendation?.opportunityId);
-      if (summonOpportunityId !== opportunityId) {
-        throw new Error(
-          `${scenario.name} summonAgent opportunity drifted: expected ${opportunityId}, received ${String(summonOpportunityId)}`,
-        );
+      if (!summonOpportunityId) {
+        throw new Error(`${scenario.name} summonAgent did not return a selected opportunity.`);
       }
+      assertStableOpportunityWhenExpected({
+        actualOpportunityId: summonOpportunityId,
+        expectedOpportunityId: selectedOpportunityId,
+        failurePrefix: `${scenario.name} summonAgent`,
+        shouldEnforce: !isHolHostedBroker,
+      });
       if ((summonPayload.enlisted?.length ?? 0) !== 0) {
         throw new Error(`${scenario.name} summonAgent should not send when recommendation=${action}.`);
       }
@@ -456,7 +595,8 @@ async function runDelegationConsumptionChecks(
       name: scenario.name,
       action,
       opportunityId,
-      candidateLabel: readOptionalString(planPayload.recommendation?.candidate?.label),
+      candidateLabel: readOptionalString(planPayload.planner?.recommendation?.candidate?.label),
+      dryRunNextAction,
     });
   }
 
@@ -468,17 +608,19 @@ async function callDelegationPlan(
   task: string,
   context: string,
 ): Promise<{
-  recommendation?: {
-    action?: string;
-    opportunityId?: string;
-    candidate?: {
-      label?: string;
+  planner?: {
+    recommendation?: {
+      action?: string;
+      opportunityId?: string;
+      candidate?: {
+        label?: string;
+      };
     };
+    opportunities?: Array<{
+      id?: string;
+      title?: string;
+    }>;
   };
-  opportunities?: Array<{
-    id?: string;
-    title?: string;
-  }>;
 }> {
   const result = await client.callTool({
     name: 'registryBroker.delegate',
@@ -486,6 +628,9 @@ async function callDelegationPlan(
       task,
       context,
       limit: 3,
+      deliverable: 'Return the next specialist action plus a concrete output shape.',
+      mustInclude: ['selected opportunity', 'recommended action'],
+      acceptanceCriteria: ['keeps the next tool choice obvious'],
       workspace: delegationPlanWorkspace,
       ...(registries ? { registries } : {}),
     },
@@ -503,6 +648,23 @@ function assertContent(
 
   if (!text.includes(needle)) {
     throw new Error(failureMessage);
+  }
+}
+
+function assertStableOpportunityWhenExpected(input: {
+  actualOpportunityId: string;
+  expectedOpportunityId: string;
+  failurePrefix: string;
+  shouldEnforce: boolean;
+}): void {
+  if (!input.shouldEnforce) {
+    return;
+  }
+
+  if (input.actualOpportunityId !== input.expectedOpportunityId) {
+    throw new Error(
+      `${input.failurePrefix} opportunity drifted: expected ${input.expectedOpportunityId}, received ${input.actualOpportunityId}`,
+    );
   }
 }
 

@@ -1,3 +1,12 @@
+import { buildDelegationPrompt } from './brief';
+import {
+  isJsonRecord,
+  readBoolean,
+  readNumber,
+  readString,
+  type JsonRecord,
+} from './value-readers';
+
 export interface DelegateCandidate {
   uaid: string;
   label: string;
@@ -25,8 +34,6 @@ export interface DelegateCandidateFilters {
   taskText?: string;
 }
 
-type JsonRecord = Record<string, unknown>;
-
 type SourceName = 'agentic' | 'vector' | 'keyword';
 
 interface AggregateCandidate extends DelegateCandidate {
@@ -37,19 +44,12 @@ interface AggregateCandidate extends DelegateCandidate {
 }
 
 export function buildDelegateMessage(task: string, candidate: DelegateCandidate): string {
-  const header =
-    candidate.label && candidate.label !== 'agent'
-      ? `${candidate.label} (${candidate.uaid})`
-      : candidate.uaid;
-  return [
-    `Hi ${header},`,
-    '',
-    'Can you help with this focused subtask?',
-    '',
-    task,
-    '',
-    'Please respond with: (1) approach, (2) key pitfalls, (3) concrete steps or code if helpful.',
-  ].join('\n');
+  return buildDelegationPrompt(
+    {
+      task,
+    },
+    candidate,
+  );
 }
 
 export function inferDelegationType(text: string): 'ai-agents' | 'mcp-servers' {
@@ -414,30 +414,6 @@ function readAgentAvailable(agent: JsonRecord): boolean | undefined {
 
   const metadata = isJsonRecord(agent.metadata) ? agent.metadata : undefined;
   return metadata ? readBoolean(metadata.available) : undefined;
-}
-
-function readString(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function readNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  return undefined;
-}
-
-function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined;
-}
-
-function isJsonRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null;
 }
 
 function preferredString(current: string | undefined, next: string | undefined): string | undefined {

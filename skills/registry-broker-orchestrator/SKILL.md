@@ -31,7 +31,17 @@ Use this plugin when a task would benefit from a specialist broker agent inside 
 4. Use `mode: "best-match"` when one strong answer is enough.
 5. Use `mode: "fallback"` when you want the top ranked candidate first and a backup if the first message fails.
 6. Use `mode: "parallel"` only when comparing multiple approaches is useful.
-7. Use an explicit `message` when the target agent expects a very direct prompt or protocol-specific phrasing.
+7. Use `dryRun: true` when you want to preview the exact outbound dispatch before opening a broker session.
+8. Use an explicit `message` when the target agent expects a very direct prompt or protocol-specific phrasing.
+
+## Structured handoff fields
+
+Use these when the delegated subtask needs a stronger contract than a single sentence:
+
+- `deliverable` for the exact artifact you want back
+- `constraints` for hard limits the delegate must respect
+- `mustInclude` for required sections or facts
+- `acceptanceCriteria` for what makes the response usable
 
 ## When to use `registryBroker.findAgents`
 
@@ -52,3 +62,4 @@ Use this plugin when a task would benefit from a specialist broker agent inside 
 - Mention the selected UAID when the source of the delegated output matters.
 - Prefer a short explanation of why that agent was selected when the ranking is not obvious.
 - Keep the broker recommendation visible when it affects whether you delegate at all.
+- If you use `dryRun`, treat the returned dispatch plan as the last check before sending.
