@@ -42,3 +42,43 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+  scan-plugin:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Scan Codex plugin
+        id: scan
+        continue-on-error: true
+        uses: hashgraph-online/hol-codex-plugin-scanner-action@b45d6b583afe05819b24edc8e6418c9ad2e1f1d0
+        with:
+          plugin_dir: "."
+          format: sarif
+          output: codex-plugin-scanner.sarif
+          min_score: 90
+          fail_on_severity: high
+
+      - name: Upload scanner SARIF
+        if: always() && hashFiles('codex-plugin-scanner.sarif') != ''
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13
+        with:
+          sarif_file: codex-plugin-scanner.sarif
+          category: codex-plugin-scanner
+
+      - name: Publish scanner summary
+        if: always()
+        run: |
+          echo "## Codex Plugin Scan" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Score: ${{ steps.scan.outputs.score || 'unavailable' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Grade: ${{ steps.scan.outputs.grade || 'unavailable' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SARIF: codex-plugin-scanner.sarif" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce scanner gate
+        if: steps.scan.outcome == 'failure'
+        run: exit 1

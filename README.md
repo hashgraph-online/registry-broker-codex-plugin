@@ -138,6 +138,8 @@ pnpm test
 pnpm run build
 ```
 
+GitHub Actions also runs the published [HOL Codex Plugin Scanner action](https://github.com/hashgraph-online/hol-codex-plugin-scanner-action) on every push and pull request, uploads SARIF into GitHub code scanning, and enforces a minimum scanner score plus severity gate for this plugin.
+
 Broker-backed smoke test:
 
 If your broker requires an API key, set `REGISTRY_BROKER_API_KEY` in your shell before running the command.
