@@ -1,0 +1,28 @@
+name: Release Notes Labels
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: release-drafter-autolabeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply_release_labels:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Apply release labels
+        uses: release-drafter/release-drafter/autolabeler@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
