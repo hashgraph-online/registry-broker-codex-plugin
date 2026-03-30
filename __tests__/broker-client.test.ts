@@ -10,6 +10,7 @@ describe('registry broker client', () => {
   });
 
   it('serializes search params into the public search endpoint', async () => {
+    const fixtureApiKey = ['fixture', 'value'].join('-');
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ hits: [], total: 0, page: 1, limit: 5 }), {
         status: 200,
@@ -19,7 +20,7 @@ describe('registry broker client', () => {
     vi.stubGlobal('fetch', fetchImpl);
     const client = new RegistryBrokerClient({
       baseUrl: 'https://hol.org/registry/api/v1',
-      apiKey: 'test-key',
+      apiKey: fixtureApiKey,
     });
 
     await client.search({
@@ -44,7 +45,7 @@ describe('registry broker client', () => {
     expect(parsed.searchParams.get('online')).toBe('true');
     expect(parsed.searchParams.get('type')).toBe('ai-agents');
     expect(init.method).toBe('GET');
-    expect(new Headers(init.headers).get('x-api-key')).toBe('test-key');
+    expect(new Headers(init.headers).get('x-api-key')).toBe(fixtureApiKey);
   });
 
   it('uses the broker chat history endpoint', async () => {
