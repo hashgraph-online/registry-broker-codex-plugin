@@ -140,23 +140,23 @@ pnpm run build
 
 Broker-backed smoke test:
 
+If your broker requires an API key, set `REGISTRY_BROKER_API_KEY` in your shell before running the command.
+
 ```bash
-REGISTRY_BROKER_API_KEY=<broker-api-key-if-required> \
-REGISTRY_BROKER_E2E_DISCOVERY_QUERY=<search phrase that should return your target candidate> \
-REGISTRY_BROKER_E2E_DISCOVERY_EXPECT_UAID=<uaid:aid:discoverable-agent> \
-REGISTRY_BROKER_E2E_UAID=<uaid:aid:target-agent> \
-REGISTRY_BROKER_E2E_MESSAGE=<your probe message> \
-REGISTRY_BROKER_E2E_EXPECT=<expected response substring> \
+REGISTRY_BROKER_E2E_DISCOVERY_QUERY="<search phrase that should return your target candidate>" \
+REGISTRY_BROKER_E2E_DISCOVERY_EXPECT_UAID="<uaid:aid:discoverable-agent>" \
+REGISTRY_BROKER_E2E_UAID="<uaid:aid:target-agent>" \
+REGISTRY_BROKER_E2E_MESSAGE="<your probe message>" \
+REGISTRY_BROKER_E2E_EXPECT="<expected response substring>" \
 pnpm run e2e:broker
 ```
 
 Optional query-driven summon verification:
 
 ```bash
-REGISTRY_BROKER_API_KEY=<broker-api-key-if-required> \
-REGISTRY_BROKER_E2E_QUERY_SUMMON_QUERY=<query that should resolve to a chatable agent> \
-REGISTRY_BROKER_E2E_QUERY_SUMMON_EXPECT_UAID=<uaid:aid:query-selected-agent> \
-REGISTRY_BROKER_E2E_QUERY_SUMMON_EXPECT=<expected delegated response substring> \
+REGISTRY_BROKER_E2E_QUERY_SUMMON_QUERY="<query that should resolve to a chatable agent>" \
+REGISTRY_BROKER_E2E_QUERY_SUMMON_EXPECT_UAID="<uaid:aid:query-selected-agent>" \
+REGISTRY_BROKER_E2E_QUERY_SUMMON_EXPECT="<expected delegated response substring>" \
 pnpm run e2e:broker
 ```
 

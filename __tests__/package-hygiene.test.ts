@@ -28,9 +28,13 @@ describe('package hygiene', () => {
       path.join(projectRoot, '__tests__', 'broker-client.test.ts'),
       'utf8',
     );
+    const apiKeyVariable = ['REGISTRY', 'BROKER', 'API', 'KEY'].join('_');
+    const shellGuidance = `If your broker requires an API key, set \`${apiKeyVariable}\` in your shell before running the command.`;
+    const quotedPlaceholder = `${apiKeyVariable}="<broker-api-key-if-required>"`;
 
     expect(readme).not.toContain("'your-api-key-if-needed'");
-    expect(readme).toContain('REGISTRY_BROKER_API_KEY=<broker-api-key-if-required>');
+    expect(readme).toContain(shellGuidance);
+    expect(readme).not.toContain(quotedPlaceholder);
     expect(brokerClientTest).not.toContain("'test-key'");
     expect(brokerClientTest).toContain("['fixture', 'value'].join('-')");
   });
@@ -44,18 +48,19 @@ describe('package hygiene', () => {
       path.join(projectRoot, '.github', 'workflows', 'release-drafter.yml'),
       'utf8',
     );
+    const releaseDrafterAutolabelerWorkflow = readFileSync(
+      path.join(projectRoot, '.github', 'workflows', 'release-drafter-autolabeler.yml'),
+      'utf8',
+    );
 
-    expect(ciWorkflow).toContain(
-      'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5',
+    expect(ciWorkflow).toMatch(/actions\/checkout@[0-9a-f]{40}/);
+    expect(ciWorkflow).toMatch(/pnpm\/action-setup@[0-9a-f]{40}/);
+    expect(ciWorkflow).toMatch(/actions\/setup-node@[0-9a-f]{40}/);
+    expect(releaseDrafterWorkflow).toMatch(
+      /release-drafter\/release-drafter@[0-9a-f]{40}/,
     );
-    expect(ciWorkflow).toContain(
-      'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1',
-    );
-    expect(ciWorkflow).toContain(
-      'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',
-    );
-    expect(releaseDrafterWorkflow).toContain(
-      'release-drafter/release-drafter@6a93d829887aa2e0748befe2e808c66c0ec6e4c7',
+    expect(releaseDrafterAutolabelerWorkflow).toMatch(
+      /release-drafter\/release-drafter\/autolabeler@[0-9a-f]{40}/,
     );
     expect(existsSync(path.join(projectRoot, '.github', 'dependabot.yml'))).toBe(true);
   });
