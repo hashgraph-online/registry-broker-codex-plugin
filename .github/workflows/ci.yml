@@ -56,7 +56,7 @@ jobs:
       - name: Scan Codex plugin
         id: scan
         continue-on-error: true
-        uses: hashgraph-online/hol-codex-plugin-scanner-action@b45d6b583afe05819b24edc8e6418c9ad2e1f1d0
+        uses: hashgraph-online/codex-plugin-scanner/action@cf6002ec0ce5176d27b4f2363ce039a52bbe9f34
         with:
           plugin_dir: "."
           format: sarif

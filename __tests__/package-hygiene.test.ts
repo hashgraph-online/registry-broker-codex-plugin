@@ -57,7 +57,7 @@ describe('package hygiene', () => {
     expect(ciWorkflow).toMatch(/pnpm\/action-setup@[0-9a-f]{40}/);
     expect(ciWorkflow).toMatch(/actions\/setup-node@[0-9a-f]{40}/);
     expect(ciWorkflow).toContain(
-      'hashgraph-online/hol-codex-plugin-scanner-action@b45d6b583afe05819b24edc8e6418c9ad2e1f1d0',
+      'hashgraph-online/codex-plugin-scanner/action@cf6002ec0ce5176d27b4f2363ce039a52bbe9f34',
     );
     expect(ciWorkflow).toMatch(/github\/codeql-action\/upload-sarif@[0-9a-f]{40}/);
     expect(ciWorkflow).toContain('format: sarif');
