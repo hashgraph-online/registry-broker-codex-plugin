@@ -7,13 +7,12 @@ import {
   normalizeAgenticFilter,
   pickDelegateCandidates,
 } from './ranking';
+import { isJsonRecord } from './value-readers';
 
 type SafeResult<T> = {
   value?: T;
   error?: string;
 };
-
-type JsonRecord = Record<string, unknown>;
 
 export type SummonExecutionInput = {
   task: string;
@@ -261,8 +260,4 @@ function isResolvedCandidate(value: unknown): boolean {
   }
 
   return typeof value.uaid === 'string' && value.uaid.trim().length > 0;
-}
-
-function isJsonRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null;
 }

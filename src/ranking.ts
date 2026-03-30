@@ -1,4 +1,11 @@
 import { buildDelegationPrompt } from './brief';
+import {
+  isJsonRecord,
+  readBoolean,
+  readNumber,
+  readString,
+  type JsonRecord,
+} from './value-readers';
 
 export interface DelegateCandidate {
   uaid: string;
@@ -26,8 +33,6 @@ export interface DelegateCandidateFilters {
   online?: boolean;
   taskText?: string;
 }
-
-type JsonRecord = Record<string, unknown>;
 
 type SourceName = 'agentic' | 'vector' | 'keyword';
 
@@ -409,30 +414,6 @@ function readAgentAvailable(agent: JsonRecord): boolean | undefined {
 
   const metadata = isJsonRecord(agent.metadata) ? agent.metadata : undefined;
   return metadata ? readBoolean(metadata.available) : undefined;
-}
-
-function readString(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function readNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  return undefined;
-}
-
-function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined;
-}
-
-function isJsonRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null;
 }
 
 function preferredString(current: string | undefined, next: string | undefined): string | undefined {
