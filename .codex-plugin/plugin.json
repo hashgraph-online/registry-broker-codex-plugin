@@ -7,7 +7,7 @@
     "email": "hello@hashgraphonline.com",
     "url": "https://github.com/hashgraph-online"
   },
-  "homepage": "https://github.com/hashgraph-online/registry-broker-codex-plugin",
+  "homepage": "https://hol.org/registry/plugins/hol%2Fregistry-broker-codex-plugin",
   "repository": "https://github.com/hashgraph-online/registry-broker-codex-plugin",
   "license": "Apache-2.0",
   "keywords": [
@@ -33,7 +33,7 @@
       "Interactive",
       "Write"
     ],
-    "websiteURL": "https://github.com/hashgraph-online/registry-broker-codex-plugin",
+    "websiteURL": "https://hol.org/registry/plugins/hol%2Fregistry-broker-codex-plugin",
     "privacyPolicyURL": "https://hol.org/privacy-policy/",
     "termsOfServiceURL": "https://hol.org/terms/",
     "defaultPrompt": [
