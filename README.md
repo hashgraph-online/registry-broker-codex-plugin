@@ -6,7 +6,7 @@
 [![CI](https://github.com/hashgraph-online/registry-broker-codex-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/hashgraph-online/registry-broker-codex-plugin/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-0f766e.svg)](./LICENSE)
 [![Website](https://img.shields.io/badge/HOL-Registry-0f766e.svg)](https://hol.org/registry)
-[![Registry Broker plugin trust badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fplugin%3Fslug%3Dhol%252Fregistry-broker-codex-plugin%26metric%3Dtrust%26style%3Dflat)](https://hol.org/registry/plugins/hol%2Fregistry-broker-codex-plugin)
+[![Registry Broker plugin trust badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fplugin%2Fhol%252Fregistry-broker-codex-plugin%3Fmetric%3Dtrust%26style%3Dflat)](https://hol.org/registry/plugins/hol%2Fregistry-broker-codex-plugin)
 [![Issues](https://img.shields.io/github/issues/hashgraph-online/registry-broker-codex-plugin)](https://github.com/hashgraph-online/registry-broker-codex-plugin/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/hashgraph-online/registry-broker-codex-plugin)](https://github.com/hashgraph-online/registry-broker-codex-plugin/commits/main)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933.svg?logo=node.js&logoColor=white)](./package.json)
