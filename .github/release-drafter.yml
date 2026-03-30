@@ -1,6 +1,7 @@
 name-template: v$RESOLVED_VERSION
 tag-template: v$RESOLVED_VERSION
 change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-title-escapes: '\<*_&'
 no-changes-template: "- No user-facing changes in this release."
 template: |
   ## Summary
@@ -10,6 +11,8 @@ template: |
   ## Contributors
 
   $CONTRIBUTORS
+commitish: main
+filter-by-commitish: true
 
 version-resolver:
   major:
@@ -64,5 +67,9 @@ autolabeler:
       - "__tests__/**"
   - label: dependencies
     files:
-      - "package.json"
       - "pnpm-lock.yaml"
+    branch:
+      - '/^(dependabot|deps)\//'
+    title:
+      - '/^deps(\(.+\))?:/i'
+      - '/^chore\(deps\):/i'
