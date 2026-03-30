@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the release instead of running a dry-run preview
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -23,5 +29,7 @@ jobs:
         uses: release-drafter/release-drafter@v7
         with:
           config-name: release-drafter.yml
+          publish: ${{ github.event_name == 'push' || github.event.inputs.publish == 'true' }}
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.publish != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
