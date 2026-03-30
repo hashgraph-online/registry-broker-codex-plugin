@@ -39,7 +39,7 @@ describe('package hygiene', () => {
     expect(brokerClientTest).toContain("['fixture', 'value'].join('-')");
   });
 
-  it('pins github actions and enables dependabot', () => {
+  it('pins github actions, dogfoods the scanner action, and enables dependabot', () => {
     const ciWorkflow = readFileSync(
       path.join(projectRoot, '.github', 'workflows', 'ci.yml'),
       'utf8',
@@ -56,6 +56,13 @@ describe('package hygiene', () => {
     expect(ciWorkflow).toMatch(/actions\/checkout@[0-9a-f]{40}/);
     expect(ciWorkflow).toMatch(/pnpm\/action-setup@[0-9a-f]{40}/);
     expect(ciWorkflow).toMatch(/actions\/setup-node@[0-9a-f]{40}/);
+    expect(ciWorkflow).toMatch(
+      /hashgraph-online\/codex-plugin-scanner\/action@[0-9a-f]{40}/,
+    );
+    expect(ciWorkflow).toMatch(/github\/codeql-action\/upload-sarif@[0-9a-f]{40}/);
+    expect(ciWorkflow).toContain('format: sarif');
+    expect(ciWorkflow).toContain('min_score: 90');
+    expect(ciWorkflow).toContain('fail_on_severity: high');
     expect(releaseDrafterWorkflow).toMatch(
       /release-drafter\/release-drafter@[0-9a-f]{40}/,
     );
