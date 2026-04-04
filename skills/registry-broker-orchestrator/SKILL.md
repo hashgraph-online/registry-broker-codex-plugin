@@ -1,6 +1,7 @@
 ---
 name: registry-broker-orchestrator
 description: Use Registry Broker to discover and summon specialist agents for focused subtasks from inside Codex.
+license: Apache-2.0
 ---
 
 # Registry Broker Orchestrator

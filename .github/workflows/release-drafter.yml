@@ -4,21 +4,20 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      publish:
-        description: Publish the release instead of running a dry-run preview
-        required: false
-        type: boolean
-        default: false
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
-concurrency:
-  group: release-drafter-${{ github.ref }}
-  cancel-in-progress: true
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   update_release_draft:
@@ -26,10 +25,8 @@ jobs:
 
     steps:
       - name: Update release draft
-        uses: release-drafter/release-drafter@139054aeaa9adc52ab36ddf67437541f039b88e2
+        uses: release-drafter/release-drafter@6a93d829887aa2e0748befe2e808c66c0ec6e4c7
         with:
           config-name: release-drafter.yml
-          publish: ${{ github.event_name == 'push' || github.event.inputs.publish == 'true' }}
-          dry-run: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.publish != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
