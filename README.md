@@ -1,5 +1,7 @@
 # HOL Registry Broker Codex Plugin
 
+[![SafeSkill 96/100](https://img.shields.io/badge/SafeSkill-96%2F100_Verified%20Safe-brightgreen)](https://safeskill.dev/scan/hashgraph-online-registry-broker-codex-plugin)
+
 | ![](https://hol.org/brand/Logo_Whole_Dark.png) | Codex plugin for [HOL Registry Broker](https://hol.org/registry). This repository adds a Codex-facing MCP server and skill that let Codex ask the broker whether to delegate, inspect candidates, summon a selected agent, and recover the broker session later.<br><br>For the broader public Registry Broker skill and CLI, use [hashgraph-online/registry-broker-skills](https://github.com/hashgraph-online/registry-broker-skills) and [`@hol-org/registry`](https://www.npmjs.com/package/@hol-org/registry). |
 | :--- | :--- |
 
