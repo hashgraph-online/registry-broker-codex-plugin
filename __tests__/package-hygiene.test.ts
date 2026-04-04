@@ -5,6 +5,9 @@ import { describe, expect, it } from 'vitest';
 const projectRoot = path.resolve(__dirname, '..');
 
 describe('package hygiene', () => {
+  const scannerActionRef =
+    'hashgraph-online/codex-plugin-scanner/action@f1757d75f68c97afb4622d6d90f65a00f55c59ea';
+
   it('ships publishable interface metadata and a codex ignore file', () => {
     const pluginManifest = JSON.parse(
       readFileSync(path.join(projectRoot, '.codex-plugin', 'plugin.json'), 'utf8'),
@@ -55,9 +58,7 @@ describe('package hygiene', () => {
     expect(ciWorkflow).toMatch(/actions\/checkout@[0-9a-f]{40}/);
     expect(ciWorkflow).toMatch(/pnpm\/action-setup@[0-9a-f]{40}/);
     expect(ciWorkflow).toMatch(/actions\/setup-node@[0-9a-f]{40}/);
-    expect(ciWorkflow).toMatch(
-      /hashgraph-online\/codex-plugin-scanner\/action@[0-9a-f]{40}/,
-    );
+    expect(ciWorkflow).toContain(scannerActionRef);
     expect(ciWorkflow).toMatch(/github\/codeql-action\/upload-sarif@[0-9a-f]{40}/);
     expect(ciWorkflow).toContain('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"');
     expect(ciWorkflow).toContain('node-version: 24');
