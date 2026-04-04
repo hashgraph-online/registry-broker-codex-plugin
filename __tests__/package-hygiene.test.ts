@@ -59,6 +59,8 @@ describe('package hygiene', () => {
       /hashgraph-online\/codex-plugin-scanner\/action@[0-9a-f]{40}/,
     );
     expect(ciWorkflow).toMatch(/github\/codeql-action\/upload-sarif@[0-9a-f]{40}/);
+    expect(ciWorkflow).toContain('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"');
+    expect(ciWorkflow).toContain('node-version: 24');
     expect(ciWorkflow).toContain('format: sarif');
     expect(ciWorkflow).toContain('min_score: 95');
     expect(ciWorkflow).toContain('output: codex-plugin-scanner.sarif');
