@@ -56,17 +56,18 @@ jobs:
       - name: Scan Codex plugin
         id: scan
         continue-on-error: true
-        uses: hashgraph-online/codex-plugin-scanner/action@5b6d3b5b82c230085e6e75d320c07e104c5898dc
+        uses: hashgraph-online/codex-plugin-scanner/action@a9217aec7327308e84ad72c13bf5e39544ad51f5
         with:
           plugin_dir: "."
           format: sarif
           output: codex-plugin-scanner.sarif
-          min_score: 90
+          min_score: 95
           fail_on_severity: high
+          install_cisco: "true"
 
       - name: Upload scanner SARIF
         if: always() && hashFiles('codex-plugin-scanner.sarif') != ''
-        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13
+        uses: github/codeql-action/upload-sarif@51f77329afa6477de8c49fc9c7046c15b9a4e79d
         with:
           sarif_file: codex-plugin-scanner.sarif
           category: codex-plugin-scanner

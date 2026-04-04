@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -9,12 +9,11 @@ describe('package hygiene', () => {
     const pluginManifest = JSON.parse(
       readFileSync(path.join(projectRoot, '.codex-plugin', 'plugin.json'), 'utf8'),
     ) as {
-      interface?: {
-        type?: string;
-      };
+      interface?: Record<string, unknown>;
     };
 
-    expect(pluginManifest.interface?.type).toBe('cli');
+    expect(pluginManifest.interface).toBeDefined();
+    expect(pluginManifest.interface).not.toHaveProperty('type');
     expect(existsSync(path.join(projectRoot, '.codexignore'))).toBe(true);
 
     const codexIgnore = readFileSync(path.join(projectRoot, '.codexignore'), 'utf8');
@@ -61,7 +60,8 @@ describe('package hygiene', () => {
     );
     expect(ciWorkflow).toMatch(/github\/codeql-action\/upload-sarif@[0-9a-f]{40}/);
     expect(ciWorkflow).toContain('format: sarif');
-    expect(ciWorkflow).toContain('min_score: 90');
+    expect(ciWorkflow).toContain('min_score: 95');
+    expect(ciWorkflow).toContain('output: codex-plugin-scanner.sarif');
     expect(ciWorkflow).toContain('fail_on_severity: high');
     expect(releaseDrafterWorkflow).toMatch(
       /release-drafter\/release-drafter@[0-9a-f]{40}/,

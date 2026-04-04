@@ -24,7 +24,6 @@
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
-    "type": "cli",
     "displayName": "Registry Broker",
     "shortDescription": "Codex wrapper for summon-first broker delegation",
     "longDescription": "A Codex-focused plugin wrapper around the canonical HOL Registry skill and CLI. Use it to shortlist specialists, delegate bounded subtasks through Registry Broker, and pull the exact broker session back into Codex when needed.",
