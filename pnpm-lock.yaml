@@ -13,8 +13,8 @@ importers:
   .:
     dependencies:
       '@hol-org/rb-client':
-        specifier: ^0.1.172
-        version: 0.1.172(axios@1.14.0)
+        specifier: ^0.1.177
+        version: 0.1.177(axios@1.14.0)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
@@ -276,8 +276,8 @@ packages:
     resolution: {integrity: sha512-ejvBr8MQCbVsWNZnCwDXjUKq40MDmHalq7cJ6e9s/qzTUFIIo/afzt1Vui9T97FM/V/pN4YsFVoed5NIa96RDg==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@hol-org/rb-client@0.1.172':
-    resolution: {integrity: sha512-BnacBz9k5C0JVNdM407alpDIqHeaja3UDQXYJIO/yhUto9m3P0ydCEHb/m3ypqmray0gF3di/wUlIRFKpLRnTQ==}
+  '@hol-org/rb-client@0.1.177':
+    resolution: {integrity: sha512-+AlDRtrPF3Z7A5iRKQHSbebEwJ63UgFuZ9wKLgeGJA+uOJvYL/m5wawbyl2yRlL35xYdoae4CPUnTDWRRXRuUA==}
     peerDependencies:
       '@hashgraph/hedera-wallet-connect': ^2.0.4
       '@hashgraph/sdk': ^2.77.0
@@ -2135,7 +2135,7 @@ snapshots:
       '@eslint/core': 1.2.0
       levn: 0.4.1
 
-  '@hol-org/rb-client@0.1.172(axios@1.14.0)':
+  '@hol-org/rb-client@0.1.177(axios@1.14.0)':
     dependencies:
       '@noble/curves': 2.0.1
       zod: 3.25.76
