@@ -13,8 +13,8 @@ importers:
   .:
     dependencies:
       '@hol-org/rb-client':
-        specifier: ^0.1.172
-        version: 0.1.172(axios@1.14.0)
+        specifier: ^0.1.180
+        version: 0.1.180(axios@1.14.0)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
@@ -276,8 +276,8 @@ packages:
     resolution: {integrity: sha512-ejvBr8MQCbVsWNZnCwDXjUKq40MDmHalq7cJ6e9s/qzTUFIIo/afzt1Vui9T97FM/V/pN4YsFVoed5NIa96RDg==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@hol-org/rb-client@0.1.172':
-    resolution: {integrity: sha512-BnacBz9k5C0JVNdM407alpDIqHeaja3UDQXYJIO/yhUto9m3P0ydCEHb/m3ypqmray0gF3di/wUlIRFKpLRnTQ==}
+  '@hol-org/rb-client@0.1.180':
+    resolution: {integrity: sha512-eQ1Y5WDRIwIBULMG9uwbwthUdMa+0fKCeUMHwQsh0xQ2BGsqqMvmX26cmaw8x6T0+YyEKtwfGXbbUWigaMMtgg==}
     peerDependencies:
       '@hashgraph/hedera-wallet-connect': ^2.0.4
       '@hashgraph/sdk': ^2.77.0
@@ -355,12 +355,12 @@ packages:
       '@cfworker/json-schema':
         optional: true
 
-  '@noble/curves@2.0.1':
-    resolution: {integrity: sha512-vs1Az2OOTBiP4q0pwjW5aF0xp9n4MxVrmkFBxc6EKZc6ddYx5gaZiAsZoq0uRRXWbi3AT/sBqn05eRPtn1JCPw==}
+  '@noble/curves@2.2.0':
+    resolution: {integrity: sha512-T/BoHgFXirb0ENSPBquzX0rcjXeM6Lo892a2jlYJkqk83LqZx0l1Of7DzlKJ6jkpvMrkHSnAcgb5JegL8SeIkQ==}
     engines: {node: '>= 20.19.0'}
 
-  '@noble/hashes@2.0.1':
-    resolution: {integrity: sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw==}
+  '@noble/hashes@2.2.0':
+    resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
     engines: {node: '>= 20.19.0'}
 
   '@pkgjs/parseargs@0.11.0':
@@ -2135,9 +2135,9 @@ snapshots:
       '@eslint/core': 1.2.0
       levn: 0.4.1
 
-  '@hol-org/rb-client@0.1.172(axios@1.14.0)':
+  '@hol-org/rb-client@0.1.180(axios@1.14.0)':
     dependencies:
-      '@noble/curves': 2.0.1
+      '@noble/curves': 2.2.0
       zod: 3.25.76
     optionalDependencies:
       axios: 1.14.0(debug@4.4.3)
@@ -2210,11 +2210,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@noble/curves@2.0.1':
+  '@noble/curves@2.2.0':
     dependencies:
-      '@noble/hashes': 2.0.1
+      '@noble/hashes': 2.2.0
 
-  '@noble/hashes@2.0.1': {}
+  '@noble/hashes@2.2.0': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
