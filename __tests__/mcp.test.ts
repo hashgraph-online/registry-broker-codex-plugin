@@ -82,6 +82,24 @@ function createService() {
     sendMessage: vi.fn().mockResolvedValue({
       sessionId: 'session-1',
       message: 'delegated answer',
+      deliveryState: 'responded',
+    }),
+    checkChatReadiness: vi.fn().mockResolvedValue({
+      status: 'responsive',
+      routeType: 'a2a',
+    }),
+    retryMessage: vi.fn().mockResolvedValue({
+      sessionId: 'session-1',
+      message: 'delegated answer',
+      idempotent: true,
+    }),
+    cancelSession: vi.fn().mockResolvedValue({
+      sessionId: 'session-1',
+      state: 'ended',
+    }),
+    endSession: vi.fn().mockResolvedValue({
+      sessionId: 'session-1',
+      state: 'ended',
     }),
     getHistory: vi.fn().mockResolvedValue({
       sessionId: 'session-1',
@@ -288,6 +306,68 @@ describe('registry broker mcp tools', () => {
     expect(service.agenticSearch).not.toHaveBeenCalled();
     expect(service.search).not.toHaveBeenCalled();
     expect(service.sendMessage).toHaveBeenCalledOnce();
+  });
+
+  it('sends a direct agent URL through summonAgent without discovery', async () => {
+    const service = createService();
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      task: 'Ask a direct Docker agent.',
+      agentUrl: 'http://ping-agent:8080/a2a',
+      mode: 'best-match',
+      limit: 1,
+      message: 'ping',
+    });
+
+    const payload = extractToolPayload(result, 'registryBroker.summonAgent');
+    expect(payload.strategy).toBe('direct-agent-url');
+    expect(service.delegate).not.toHaveBeenCalled();
+    expect(service.agenticSearch).not.toHaveBeenCalled();
+    expect(service.search).not.toHaveBeenCalled();
+    expect(service.sendMessage).toHaveBeenCalledWith({
+      agentUrl: 'http://ping-agent:8080/a2a',
+      message: 'ping',
+      streaming: undefined,
+    });
+  });
+
+  it('exposes chat readiness, retry, cancel, and end lifecycle tools', async () => {
+    const service = createService();
+    const tools = createToolDefinitions(service);
+    const readiness = tools.find((entry) => entry.name === 'registryBroker.chatReadiness');
+    const retry = tools.find((entry) => entry.name === 'registryBroker.retryMessage');
+    const cancel = tools.find((entry) => entry.name === 'registryBroker.cancelSession');
+    const end = tools.find((entry) => entry.name === 'registryBroker.endSession');
+
+    expect(readiness).toBeDefined();
+    expect(retry).toBeDefined();
+    expect(cancel).toBeDefined();
+    expect(end).toBeDefined();
+
+    await readiness!.execute({ uaid: 'uaid:test-agent' });
+    await retry!.execute({
+      messageId: 'idem-1',
+      sessionId: 'session-1',
+      message: 'hello',
+    });
+    await cancel!.execute({ sessionId: 'session-1' });
+    await end!.execute({ sessionId: 'session-1' });
+
+    expect(service.checkChatReadiness).toHaveBeenCalledWith({ uaid: 'uaid:test-agent' });
+    expect(service.retryMessage).toHaveBeenCalledWith('idem-1', {
+      sessionId: 'session-1',
+      message: 'hello',
+      uaid: undefined,
+      agentUrl: undefined,
+      idempotencyKey: undefined,
+    });
+    expect(service.cancelSession).toHaveBeenCalledWith('session-1');
+    expect(service.endSession).toHaveBeenCalledWith('session-1');
   });
 
   it('uses planner-selected candidates before local ranking in summonAgent', async () => {
@@ -812,11 +892,13 @@ describe('registry broker mcp tools', () => {
 });
 
 const extractedToolPayloadSchema = z.object({
+  strategy: z.string().optional(),
   dryRun: z.boolean().optional(),
   dispatchPlan: z
     .array(
       z.object({
         uaid: z.string().optional(),
+        agentUrl: z.string().optional(),
         message: z.string().optional(),
       }),
     )

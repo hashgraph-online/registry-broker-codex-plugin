@@ -36,6 +36,10 @@ export interface BrokerService {
     filter?: Record<string, unknown>;
   }): Promise<unknown>;
   sendMessage(input: SendMessageRequestPayload): Promise<SendMessageResponse>;
+  checkChatReadiness(input: Record<string, unknown>): Promise<unknown>;
+  retryMessage(messageId: string, input: Record<string, unknown>): Promise<unknown>;
+  cancelSession(sessionId: string): Promise<unknown>;
+  endSession(sessionId: string): Promise<unknown>;
   getHistory(sessionId: string): Promise<unknown>;
   resolveUaid(uaid: string): Promise<unknown>;
 }
@@ -126,6 +130,38 @@ export class RegistryBrokerService implements BrokerService {
 
   sendMessage(input: SendMessageRequestPayload): Promise<SendMessageResponse> {
     return this.client.chat.sendMessage(input);
+  }
+
+  checkChatReadiness(input: Record<string, unknown>): Promise<unknown> {
+    return this.client.requestJson('/chat/readiness', {
+      method: 'POST',
+      body: input,
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
+  }
+
+  retryMessage(messageId: string, input: Record<string, unknown>): Promise<unknown> {
+    return this.client.requestJson(`/chat/message/${encodeURIComponent(messageId)}/retry`, {
+      method: 'POST',
+      body: input,
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
+  }
+
+  cancelSession(sessionId: string): Promise<unknown> {
+    return this.client.requestJson(`/chat/session/${encodeURIComponent(sessionId)}/cancel`, {
+      method: 'POST',
+    });
+  }
+
+  endSession(sessionId: string): Promise<unknown> {
+    return this.client.requestJson(`/chat/session/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+    });
   }
 
   getHistory(sessionId: string): Promise<unknown> {

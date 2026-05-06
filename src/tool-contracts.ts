@@ -55,6 +55,7 @@ export const summonSchema = z.object({
   query: z.string().optional(),
   opportunityId: z.string().min(1).optional(),
   uaid: z.string().min(1).optional(),
+  agentUrl: z.string().url().optional(),
   limit: z.number().int().min(1).max(3).default(3),
   mode: z.enum(['best-match', 'fallback', 'parallel']).default('fallback'),
   dryRun: z.boolean().default(false),
@@ -66,5 +67,23 @@ export const summonSchema = z.object({
 });
 
 export const sessionHistorySchema = z.object({
+  sessionId: z.string().min(1),
+});
+
+export const chatReadinessSchema = z.object({
+  uaid: z.string().min(1).optional(),
+  agentUrl: z.string().url().optional(),
+});
+
+export const chatRetrySchema = z.object({
+  messageId: z.string().min(1),
+  sessionId: z.string().min(1),
+  message: z.string().min(1),
+  uaid: z.string().min(1).optional(),
+  agentUrl: z.string().url().optional(),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const chatEndSchema = z.object({
   sessionId: z.string().min(1),
 });

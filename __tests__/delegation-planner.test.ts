@@ -23,6 +23,10 @@ describe('registryBroker.delegate tool', () => {
       agenticSearch: vi.fn(),
       delegate,
       sendMessage: vi.fn(),
+      checkChatReadiness: vi.fn(),
+      retryMessage: vi.fn(),
+      cancelSession: vi.fn(),
+      endSession: vi.fn(),
       getHistory: vi.fn(),
       resolveUaid: vi.fn(),
     }).find((entry) => entry.name === 'registryBroker.delegate');
@@ -88,6 +92,10 @@ describe('registryBroker.delegate tool', () => {
       agenticSearch: vi.fn(),
       delegate,
       sendMessage: vi.fn(),
+      checkChatReadiness: vi.fn(),
+      retryMessage: vi.fn(),
+      cancelSession: vi.fn(),
+      endSession: vi.fn(),
       getHistory: vi.fn(),
       resolveUaid: vi.fn(),
     }).find((entry) => entry.name === 'registryBroker.delegate');
@@ -160,6 +168,10 @@ describe('registryBroker.delegate tool', () => {
       agenticSearch: vi.fn(),
       delegate,
       sendMessage: vi.fn(),
+      checkChatReadiness: vi.fn(),
+      retryMessage: vi.fn(),
+      cancelSession: vi.fn(),
+      endSession: vi.fn(),
       getHistory: vi.fn(),
       resolveUaid: vi.fn(),
     }).find((entry) => entry.name === 'registryBroker.delegate');

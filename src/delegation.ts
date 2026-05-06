@@ -19,15 +19,18 @@ export type SummonExecutionInput = {
   brief: string;
   message?: string;
   streaming?: boolean;
+  agentUrl?: string;
   mode: 'best-match' | 'fallback' | 'parallel';
   limit: number;
 };
 
 export type SummonDispatchResult = {
-  uaid: string;
+  uaid?: string;
+  agentUrl?: string;
   label: string;
   message: string;
   status: 'ok' | 'error';
+  outcome?: string;
   response?: unknown;
   error?: string;
 };
@@ -117,17 +120,25 @@ export async function sendToCandidate(
 ): Promise<SummonDispatchResult> {
   const message =
     input.message ?? candidate.suggestedMessage ?? buildDelegateMessage(input.brief, candidate);
+  const messageRequest = input.agentUrl
+    ? {
+        agentUrl: input.agentUrl,
+        message,
+        streaming: input.streaming,
+      }
+    : {
+        uaid: candidate.uaid,
+        message,
+        streaming: input.streaming,
+      };
   const response = await safeInvoke(() =>
-    service.sendMessage({
-      uaid: candidate.uaid,
-      message,
-      streaming: input.streaming,
-    }),
+    service.sendMessage(messageRequest),
   );
 
   if (response.error) {
     return {
       uaid: candidate.uaid,
+      agentUrl: input.agentUrl,
       label: candidate.label,
       message,
       status: 'error',
@@ -137,11 +148,33 @@ export async function sendToCandidate(
 
   return {
     uaid: candidate.uaid,
+    agentUrl: input.agentUrl,
     label: candidate.label,
     message,
     status: 'ok',
+    outcome: describeChatOutcome(response.value),
     response: response.value,
   };
+}
+
+function describeChatOutcome(value: unknown): string {
+  if (!isJsonRecord(value)) {
+    return 'response_received';
+  }
+
+  if (value.deliveryConfirmation === true || value.replyMode === 'delivery_only') {
+    return 'delivery_confirmed';
+  }
+
+  if (value.deliveryState === 'responded' || typeof value.message === 'string') {
+    return 'assistant_response';
+  }
+
+  if (typeof value.deliveryState === 'string') {
+    return value.deliveryState;
+  }
+
+  return 'response_received';
 }
 
 export async function preferReachableCandidates(
