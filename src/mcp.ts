@@ -442,7 +442,7 @@ export function createToolDefinitions(
         logger.info({ requestId, tool: 'registryBroker.summonAgent' }, 'tool.invoke');
 
         const directTarget = input.agentUrl
-          ? { uaid: input.uaid ?? input.agentUrl, label: input.uaid ?? input.agentUrl }
+          ? { uaid: input.uaid ?? input.agentUrl, label: input.uaid ?? 'Direct agent endpoint' }
           : undefined;
 
         const planResult = input.uaid || directTarget
@@ -586,25 +586,28 @@ export function createToolDefinitions(
           );
         }
 
-        const rankedCandidates: Array<{ uaid: string; label: string; suggestedMessage?: string }> = directTarget
-          ? [directTarget]
-            : input.uaid
-              ? [{ uaid: input.uaid, label: input.uaid }]
-              : plannerSelection && plannerSelection.candidates.length > 0 && !shouldFallbackToSearch
-                ? plannerSelection.candidates
-                : await findFallbackCandidates(service, query, {
-                    task: delegationBrief,
-                    limit: desiredCandidateCount,
-                    registries: input.registries,
-                    capabilities: input.capabilities,
-                    protocols: input.protocols,
-                    adapters: input.adapters,
-                    minTrust: input.minTrust,
-                    verified: input.verified,
-                    online: input.online,
-                    type: input.type,
-                    desiredCandidateCount,
-                  });
+        let rankedCandidates: Array<{ uaid: string; label: string; suggestedMessage?: string }>;
+        if (directTarget) {
+          rankedCandidates = [directTarget];
+        } else if (input.uaid) {
+          rankedCandidates = [{ uaid: input.uaid, label: input.uaid }];
+        } else if (plannerSelection && plannerSelection.candidates.length > 0 && !shouldFallbackToSearch) {
+          rankedCandidates = plannerSelection.candidates;
+        } else {
+          rankedCandidates = await findFallbackCandidates(service, query, {
+            task: delegationBrief,
+            limit: desiredCandidateCount,
+            registries: input.registries,
+            capabilities: input.capabilities,
+            protocols: input.protocols,
+            adapters: input.adapters,
+            minTrust: input.minTrust,
+            verified: input.verified,
+            online: input.online,
+            type: input.type,
+            desiredCandidateCount,
+          });
+        }
         const candidates = input.uaid || directTarget
           ? rankedCandidates
           : await preferReachableCandidates(

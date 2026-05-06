@@ -326,6 +326,7 @@ describe('registry broker mcp tools', () => {
 
     const payload = extractToolPayload(result, 'registryBroker.summonAgent');
     expect(payload.strategy).toBe('direct-agent-url');
+    expect(payload.candidates?.[0]?.label).toBe('Direct agent endpoint');
     expect(service.delegate).not.toHaveBeenCalled();
     expect(service.agenticSearch).not.toHaveBeenCalled();
     expect(service.search).not.toHaveBeenCalled();
@@ -894,6 +895,14 @@ describe('registry broker mcp tools', () => {
 const extractedToolPayloadSchema = z.object({
   strategy: z.string().optional(),
   dryRun: z.boolean().optional(),
+  candidates: z
+    .array(
+      z.object({
+        uaid: z.string(),
+        label: z.string(),
+      }),
+    )
+    .optional(),
   dispatchPlan: z
     .array(
       z.object({
