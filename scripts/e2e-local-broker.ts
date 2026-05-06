@@ -8,7 +8,8 @@ const projectRoot = path.resolve(__dirname, '..');
 const defaultPingAgentUaid =
   'uaid:aid:2vdWUw1Qd26QtfXomHZhSJb6x4Pd3r5MTYr82v9A15ua2ja8TiVTWZEFAg1rQ37gpW';
 const holHostedBrokerBaseUrl = 'https://hol.org/registry/api/v1';
-const brokerBaseUrl = readEnvOrDefault('REGISTRY_BROKER_API_URL', holHostedBrokerBaseUrl);
+const localBrokerBaseUrl = 'http://127.0.0.1:4000/api/v1';
+const brokerBaseUrl = readEnvOrDefault('REGISTRY_BROKER_API_URL', localBrokerBaseUrl);
 const isHolHostedBroker = brokerBaseUrl === holHostedBrokerBaseUrl;
 const brokerApiKey = readOptionalEnv('REGISTRY_BROKER_API_KEY');
 const registries = readOptionalListEnv('REGISTRY_BROKER_E2E_REGISTRIES');
@@ -41,6 +42,9 @@ const delegationPlanWorkspace = {
 const discoveryLimit = readOptionalIntEnv('REGISTRY_BROKER_E2E_DISCOVERY_LIMIT') ?? 5;
 const brokerTargetUaid =
   readOptionalEnv('REGISTRY_BROKER_E2E_UAID') ?? (!isHolHostedBroker ? defaultPingAgentUaid : undefined);
+const brokerTargetAgentUrl =
+  readOptionalEnv('REGISTRY_BROKER_E2E_AGENT_URL') ??
+  (!isHolHostedBroker ? 'http://ping-agent:8080/a2a' : undefined);
 const brokerProbeMessage = readOptionalEnv('REGISTRY_BROKER_E2E_MESSAGE') ?? 'ping';
 const brokerExpectedText = readOptionalEnv('REGISTRY_BROKER_E2E_EXPECT') ?? 'PONG';
 const querySummonQuery = readOptionalEnv('REGISTRY_BROKER_E2E_QUERY_SUMMON_QUERY');
@@ -190,17 +194,25 @@ async function runDirectBrokerVerification(
     matchedLabel?: string;
   };
   dryRun: {
-    uaid: string;
+    uaid?: string;
+    agentUrl?: string;
     nextAction?: string;
   };
   querySummon?: {
     query: string;
     sessionId: string;
   };
-  uaid: string;
+  uaid?: string;
+  agentUrl?: string;
   sessionId: string;
 }> {
-  if (!discoveryTask || !discoveryQuery || !discoveryExpectedUaid || !delegationPlanExpectedUaid || !brokerTargetUaid) {
+  if (
+    !discoveryTask ||
+    !discoveryQuery ||
+    !discoveryExpectedUaid ||
+    !delegationPlanExpectedUaid ||
+    (!brokerTargetUaid && !brokerTargetAgentUrl)
+  ) {
     throw new Error('Direct broker verification is missing required configuration.');
   }
 
@@ -289,7 +301,8 @@ async function runDirectBrokerVerification(
     name: 'registryBroker.summonAgent',
     arguments: {
       task: 'Verify broker delegation to a caller-specified target agent.',
-      uaid: brokerTargetUaid,
+      ...(brokerTargetUaid ? { uaid: brokerTargetUaid } : {}),
+      ...(brokerTargetAgentUrl ? { agentUrl: brokerTargetAgentUrl } : {}),
       dryRun: true,
       limit: 1,
       mode: 'best-match',
@@ -310,14 +323,18 @@ async function runDirectBrokerVerification(
     };
     dispatchPlan?: Array<{
       uaid?: string;
+      agentUrl?: string;
       message?: string;
     }>;
   }>(dryRunResult, 'registryBroker.summonAgent');
   if (dryRunPayload.dryRun !== true) {
     throw new Error('summonAgent dry run did not mark the payload as dryRun=true.');
   }
-  if (dryRunPayload.dispatchPlan?.[0]?.uaid !== brokerTargetUaid) {
+  if (brokerTargetUaid && dryRunPayload.dispatchPlan?.[0]?.uaid !== brokerTargetUaid) {
     throw new Error('summonAgent dry run did not preserve the direct UAID target.');
+  }
+  if (brokerTargetAgentUrl && dryRunPayload.dispatchPlan?.[0]?.agentUrl !== brokerTargetAgentUrl) {
+    throw new Error('summonAgent dry run did not preserve the direct agentUrl target.');
   }
   if (!dryRunPayload.dispatchPlan?.[0]?.message?.includes('Acceptance criteria:')) {
     throw new Error('summonAgent dry run did not render the structured brief.');
@@ -327,7 +344,8 @@ async function runDirectBrokerVerification(
     name: 'registryBroker.summonAgent',
     arguments: {
       task: 'Verify broker delegation to a caller-specified target agent.',
-      uaid: brokerTargetUaid,
+      ...(brokerTargetUaid ? { uaid: brokerTargetUaid } : {}),
+      ...(brokerTargetAgentUrl ? { agentUrl: brokerTargetAgentUrl } : {}),
       limit: 1,
       mode: 'best-match',
       message: brokerProbeMessage,
@@ -383,9 +401,11 @@ async function runDirectBrokerVerification(
       : undefined,
     dryRun: {
       uaid: brokerTargetUaid,
+      agentUrl: brokerTargetAgentUrl,
       nextAction: dryRunPayload.nextAction?.type,
     },
     uaid: brokerTargetUaid,
+    agentUrl: brokerTargetAgentUrl,
     sessionId,
   };
 }
@@ -741,7 +761,7 @@ function hasDirectBrokerVerificationConfig(): boolean {
       discoveryQuery &&
       discoveryExpectedUaid &&
       delegationPlanExpectedUaid &&
-      brokerTargetUaid,
+      (brokerTargetUaid || brokerTargetAgentUrl),
   );
 }
 

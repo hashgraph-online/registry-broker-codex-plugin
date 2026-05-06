@@ -30,6 +30,9 @@ import {
 } from './ranking';
 import {
   delegateSchema,
+  chatEndSchema,
+  chatReadinessSchema,
+  chatRetrySchema,
   searchSchema,
   sessionHistorySchema,
   summonSchema,
@@ -73,8 +76,11 @@ export function createToolDefinitions(
 ): Array<
   ToolDefinition<
     | typeof searchSchema
-    | typeof delegateSchema
-    | typeof summonSchema
+     | typeof delegateSchema
+     | typeof chatEndSchema
+     | typeof chatReadinessSchema
+     | typeof chatRetrySchema
+     | typeof summonSchema
     | typeof sessionHistorySchema
   >
 > {
@@ -150,6 +156,107 @@ export function createToolDefinitions(
             nextAction,
             planner: result,
           },
+        );
+      },
+    },
+    {
+      name: 'registryBroker.chatReadiness',
+      description: 'Check whether a broker agent route can support chat before opening a session.',
+      parameters: chatReadinessSchema,
+      annotations: {
+        title: 'Registry Broker Chat Readiness',
+        readOnlyHint: true,
+      },
+      execute: async (args, context) => {
+        const requestId = context?.requestId ?? randomUUID();
+        const input = chatReadinessSchema.parse(args);
+        if (!input.uaid && !input.agentUrl) {
+          return resultWithPayload(
+            'Provide either uaid or agentUrl.',
+            'registryBroker.chatReadiness',
+            { error: 'uaid_or_agent_url_required' },
+          );
+        }
+
+        logger.info({ requestId, tool: 'registryBroker.chatReadiness' }, 'tool.invoke');
+        const readiness = await service.checkChatReadiness(input);
+        logger.info({ requestId, tool: 'registryBroker.chatReadiness' }, 'tool.success');
+
+        return resultWithPayload(
+          'Chat readiness checked.',
+          'registryBroker.chatReadiness',
+          { readiness },
+        );
+      },
+    },
+    {
+      name: 'registryBroker.retryMessage',
+      description: 'Retry a broker chat message by persisted message/idempotency key.',
+      parameters: chatRetrySchema,
+      annotations: {
+        title: 'Registry Broker Retry Message',
+      },
+      execute: async (args, context) => {
+        const requestId = context?.requestId ?? randomUUID();
+        const input = chatRetrySchema.parse(args);
+        logger.info({ requestId, tool: 'registryBroker.retryMessage' }, 'tool.invoke');
+        const response = await service.retryMessage(input.messageId, {
+          sessionId: input.sessionId,
+          message: input.message,
+          uaid: input.uaid,
+          agentUrl: input.agentUrl,
+          idempotencyKey: input.idempotencyKey,
+        });
+        logger.info({ requestId, tool: 'registryBroker.retryMessage' }, 'tool.success');
+
+        return resultWithPayload(
+          'Chat message retry completed.',
+          'registryBroker.retryMessage',
+          { sessionId: input.sessionId, response },
+        );
+      },
+    },
+    {
+      name: 'registryBroker.cancelSession',
+      description: 'Cancel a broker chat session and return its terminal state.',
+      parameters: chatEndSchema,
+      annotations: {
+        title: 'Registry Broker Cancel Session',
+        destructiveHint: true,
+      },
+      execute: async (args, context) => {
+        const requestId = context?.requestId ?? randomUUID();
+        const input = chatEndSchema.parse(args);
+        logger.info({ requestId, tool: 'registryBroker.cancelSession' }, 'tool.invoke');
+        const session = await service.cancelSession(input.sessionId);
+        logger.info({ requestId, tool: 'registryBroker.cancelSession' }, 'tool.success');
+
+        return resultWithPayload(
+          `Cancelled chat session ${input.sessionId}.`,
+          'registryBroker.cancelSession',
+          { session },
+        );
+      },
+    },
+    {
+      name: 'registryBroker.endSession',
+      description: 'End a broker chat session and return its terminal state.',
+      parameters: chatEndSchema,
+      annotations: {
+        title: 'Registry Broker End Session',
+        destructiveHint: true,
+      },
+      execute: async (args, context) => {
+        const requestId = context?.requestId ?? randomUUID();
+        const input = chatEndSchema.parse(args);
+        logger.info({ requestId, tool: 'registryBroker.endSession' }, 'tool.invoke');
+        const session = await service.endSession(input.sessionId);
+        logger.info({ requestId, tool: 'registryBroker.endSession' }, 'tool.success');
+
+        return resultWithPayload(
+          `Ended chat session ${input.sessionId}.`,
+          'registryBroker.endSession',
+          { session },
         );
       },
     },
@@ -334,7 +441,11 @@ export function createToolDefinitions(
 
         logger.info({ requestId, tool: 'registryBroker.summonAgent' }, 'tool.invoke');
 
-        const planResult = input.uaid
+        const directTarget = input.agentUrl
+          ? { uaid: input.uaid ?? input.agentUrl, label: input.uaid ?? 'Direct agent endpoint' }
+          : undefined;
+
+        const planResult = input.uaid || directTarget
           ? undefined
           : await safeInvoke(() =>
               service.delegate({
@@ -355,7 +466,7 @@ export function createToolDefinitions(
               }),
             );
         const plannerSelection =
-          !input.uaid && planResult?.value !== undefined
+          !input.uaid && !directTarget && planResult?.value !== undefined
             ? selectPlannerCandidates(planResult.value, {
                 task: input.task,
                 query,
@@ -365,12 +476,13 @@ export function createToolDefinitions(
         const recommendationAction = readPlannerAction(plannerSelection?.recommendation);
         const shouldFallbackToSearch =
           !input.uaid &&
+          !directTarget &&
           (plannerSelection === undefined ||
             (recommendationAction === undefined && plannerSelection.candidates.length === 0) ||
             (recommendationAction === 'delegate-now' && plannerSelection.candidates.length === 0) ||
             (recommendationAction === 'review-shortlist' && plannerSelection.candidates.length === 0));
 
-        if (!input.uaid && recommendationAction === 'handle-locally') {
+        if (!input.uaid && !directTarget && recommendationAction === 'handle-locally') {
           const nextAction = buildDelegateNextAction(plannerSelection, {
             task: input.task,
             query,
@@ -414,6 +526,7 @@ export function createToolDefinitions(
 
         if (
           !input.uaid &&
+          !directTarget &&
           recommendationAction === 'review-shortlist' &&
           plannerSelection &&
           plannerSelection.candidates.length > 0
@@ -473,24 +586,29 @@ export function createToolDefinitions(
           );
         }
 
-        const rankedCandidates = input.uaid
-          ? [{ uaid: input.uaid, label: input.uaid }]
-          : plannerSelection && plannerSelection.candidates.length > 0 && !shouldFallbackToSearch
-            ? plannerSelection.candidates
-            : await findFallbackCandidates(service, query, {
-                task: delegationBrief,
-                limit: desiredCandidateCount,
-                registries: input.registries,
-                capabilities: input.capabilities,
-                protocols: input.protocols,
-                adapters: input.adapters,
-                minTrust: input.minTrust,
-                verified: input.verified,
-                online: input.online,
-                type: input.type,
-                desiredCandidateCount,
-              });
-        const candidates = input.uaid
+        let rankedCandidates: Array<{ uaid: string; label: string; suggestedMessage?: string }>;
+        if (directTarget) {
+          rankedCandidates = [directTarget];
+        } else if (input.uaid) {
+          rankedCandidates = [{ uaid: input.uaid, label: input.uaid }];
+        } else if (plannerSelection && plannerSelection.candidates.length > 0 && !shouldFallbackToSearch) {
+          rankedCandidates = plannerSelection.candidates;
+        } else {
+          rankedCandidates = await findFallbackCandidates(service, query, {
+            task: delegationBrief,
+            limit: desiredCandidateCount,
+            registries: input.registries,
+            capabilities: input.capabilities,
+            protocols: input.protocols,
+            adapters: input.adapters,
+            minTrust: input.minTrust,
+            verified: input.verified,
+            online: input.online,
+            type: input.type,
+            desiredCandidateCount,
+          });
+        }
+        const candidates = input.uaid || directTarget
           ? rankedCandidates
           : await preferReachableCandidates(
               service,
@@ -537,6 +655,7 @@ export function createToolDefinitions(
           input.mode === 'best-match' ? candidates.slice(0, 1) : candidates.slice(0, input.limit);
         const dispatchPlan = chosen.map((candidate) => ({
           uaid: candidate.uaid,
+          agentUrl: input.agentUrl,
           label: candidate.label,
           message:
             input.message ??
@@ -558,7 +677,8 @@ export function createToolDefinitions(
               `Next action: ${String(nextAction.type)}`,
               'Dry run only. No broker message sent.',
               ...dispatchPlan.map(
-                (entry, index) => `${index + 1}. ${entry.label} — ${entry.uaid} (preview)`,
+                (entry, index) =>
+                  `${index + 1}. ${entry.label} — ${entry.agentUrl ?? entry.uaid} (preview)`,
               ),
             ].join('\n'),
             'registryBroker.summonAgent',
@@ -566,9 +686,11 @@ export function createToolDefinitions(
               strategy:
                 plannerSelection && plannerSelection.candidates.length > 0 && !shouldFallbackToSearch
                   ? 'broker-plan'
-                  : input.uaid
-                    ? 'direct-uaid'
-                    : 'search-fallback',
+                  : input.agentUrl
+                    ? 'direct-agent-url'
+                    : input.uaid
+                      ? 'direct-uaid'
+                      : 'search-fallback',
               query,
               task: input.task,
               delegationBrief,
@@ -598,6 +720,7 @@ export function createToolDefinitions(
                     brief: delegationBrief,
                     message: input.message,
                     streaming: input.streaming,
+                    agentUrl: input.agentUrl,
                     mode: input.mode,
                     limit: input.limit,
                   }),
@@ -608,6 +731,7 @@ export function createToolDefinitions(
                 brief: delegationBrief,
                 message: input.message,
                 streaming: input.streaming,
+                agentUrl: input.agentUrl,
                 mode: input.mode,
                 limit: input.limit,
               });
@@ -643,7 +767,7 @@ export function createToolDefinitions(
               : undefined,
             ...enlisted.map(
               (entry, index) =>
-                `${index + 1}. ${entry.label} — ${entry.uaid} (${entry.status})`,
+                `${index + 1}. ${entry.label} — ${entry.agentUrl ?? entry.uaid} (${entry.status})`,
             ),
           ]
             .filter(Boolean)
@@ -653,9 +777,11 @@ export function createToolDefinitions(
             strategy:
               plannerSelection && plannerSelection.candidates.length > 0 && !shouldFallbackToSearch
                 ? 'broker-plan'
-                : input.uaid
-                  ? 'direct-uaid'
-                  : 'search-fallback',
+                : input.agentUrl
+                  ? 'direct-agent-url'
+                  : input.uaid
+                    ? 'direct-uaid'
+                    : 'search-fallback',
             query,
             task: input.task,
             delegationBrief,
