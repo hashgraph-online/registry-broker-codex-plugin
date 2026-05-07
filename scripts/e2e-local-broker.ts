@@ -205,6 +205,9 @@ async function runDirectBrokerVerification(
   uaid?: string;
   agentUrl?: string;
   sessionId: string;
+  resume: {
+    sessionId: string;
+  };
 }> {
   if (
     !discoveryTask ||
@@ -349,6 +352,7 @@ async function runDirectBrokerVerification(
       limit: 1,
       mode: 'best-match',
       message: brokerProbeMessage,
+      idempotencyKey: `plugin-e2e-${Date.now()}`,
     },
   });
   assertContent(
@@ -380,6 +384,17 @@ async function runDirectBrokerVerification(
     brokerExpectedText,
     'sessionHistory did not include the expected delegated response',
   );
+  const resumeResult = await client.callTool({
+    name: 'registryBroker.resumeSession',
+    arguments: {
+      sessionId,
+    },
+  });
+  assertContent(
+    resumeResult,
+    sessionId,
+    'resumeSession did not return the expected sessionId',
+  );
 
   return {
     delegationPlan: {
@@ -407,6 +422,9 @@ async function runDirectBrokerVerification(
     uaid: brokerTargetUaid,
     agentUrl: brokerTargetAgentUrl,
     sessionId,
+    resume: {
+      sessionId,
+    },
   };
 }
 

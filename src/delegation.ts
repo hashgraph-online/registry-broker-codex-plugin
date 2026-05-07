@@ -19,6 +19,7 @@ export type SummonExecutionInput = {
   brief: string;
   message?: string;
   streaming?: boolean;
+  idempotencyKey?: string;
   agentUrl?: string;
   mode: 'best-match' | 'fallback' | 'parallel';
   limit: number;
@@ -125,11 +126,13 @@ export async function sendToCandidate(
         agentUrl: input.agentUrl,
         message,
         streaming: input.streaming,
+        ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
       }
     : {
         uaid: candidate.uaid,
         message,
         streaming: input.streaming,
+        ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
       };
   const response = await safeInvoke(() =>
     service.sendMessage(messageRequest),

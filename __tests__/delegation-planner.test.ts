@@ -28,6 +28,7 @@ describe('registryBroker.delegate tool', () => {
       cancelSession: vi.fn(),
       endSession: vi.fn(),
       getHistory: vi.fn(),
+      resumeSession: vi.fn(),
       resolveUaid: vi.fn(),
     }).find((entry) => entry.name === 'registryBroker.delegate');
 
@@ -97,6 +98,7 @@ describe('registryBroker.delegate tool', () => {
       cancelSession: vi.fn(),
       endSession: vi.fn(),
       getHistory: vi.fn(),
+      resumeSession: vi.fn(),
       resolveUaid: vi.fn(),
     }).find((entry) => entry.name === 'registryBroker.delegate');
 
@@ -173,6 +175,7 @@ describe('registryBroker.delegate tool', () => {
       cancelSession: vi.fn(),
       endSession: vi.fn(),
       getHistory: vi.fn(),
+      resumeSession: vi.fn(),
       resolveUaid: vi.fn(),
     }).find((entry) => entry.name === 'registryBroker.delegate');
 
