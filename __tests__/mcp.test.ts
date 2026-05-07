@@ -105,6 +105,11 @@ function createService() {
       sessionId: 'session-1',
       history: [],
     }),
+    resumeSession: vi.fn().mockResolvedValue({
+      sessionId: 'session-1',
+      history: [],
+      transport: 'a2a',
+    }),
     resolveUaid: vi.fn().mockResolvedValue({}),
   };
 }
@@ -337,29 +342,35 @@ describe('registry broker mcp tools', () => {
     });
   });
 
-  it('exposes chat readiness, retry, cancel, and end lifecycle tools', async () => {
+  it('exposes chat readiness, retry, resume, cancel, and end lifecycle tools', async () => {
     const service = createService();
     const tools = createToolDefinitions(service);
     const readiness = tools.find((entry) => entry.name === 'registryBroker.chatReadiness');
     const retry = tools.find((entry) => entry.name === 'registryBroker.retryMessage');
+    const resume = tools.find((entry) => entry.name === 'registryBroker.resumeSession');
     const cancel = tools.find((entry) => entry.name === 'registryBroker.cancelSession');
     const end = tools.find((entry) => entry.name === 'registryBroker.endSession');
 
     expect(readiness).toBeDefined();
     expect(retry).toBeDefined();
+    expect(resume).toBeDefined();
     expect(cancel).toBeDefined();
     expect(end).toBeDefined();
 
-    await readiness!.execute({ uaid: 'uaid:test-agent' });
+    await readiness!.execute({ uaid: 'uaid:test-agent', forceRefresh: true });
     await retry!.execute({
       messageId: 'idem-1',
       sessionId: 'session-1',
       message: 'hello',
     });
+    await resume!.execute({ sessionId: 'session-1' });
     await cancel!.execute({ sessionId: 'session-1' });
     await end!.execute({ sessionId: 'session-1' });
 
-    expect(service.checkChatReadiness).toHaveBeenCalledWith({ uaid: 'uaid:test-agent' });
+    expect(service.checkChatReadiness).toHaveBeenCalledWith({
+      uaid: 'uaid:test-agent',
+      forceRefresh: true,
+    });
     expect(service.retryMessage).toHaveBeenCalledWith('idem-1', {
       sessionId: 'session-1',
       message: 'hello',
@@ -367,6 +378,7 @@ describe('registry broker mcp tools', () => {
       agentUrl: undefined,
       idempotencyKey: undefined,
     });
+    expect(service.resumeSession).toHaveBeenCalledWith('session-1');
     expect(service.cancelSession).toHaveBeenCalledWith('session-1');
     expect(service.endSession).toHaveBeenCalledWith('session-1');
   });

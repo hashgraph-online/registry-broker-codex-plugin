@@ -35,6 +35,7 @@ import {
   chatRetrySchema,
   searchSchema,
   sessionHistorySchema,
+  sessionResumeSchema,
   summonSchema,
 } from './tool-contracts';
 import {
@@ -81,6 +82,7 @@ export function createToolDefinitions(
      | typeof chatReadinessSchema
      | typeof chatRetrySchema
      | typeof summonSchema
+     | typeof sessionResumeSchema
     | typeof sessionHistorySchema
   >
 > {
@@ -720,6 +722,7 @@ export function createToolDefinitions(
                     brief: delegationBrief,
                     message: input.message,
                     streaming: input.streaming,
+                    idempotencyKey: input.idempotencyKey,
                     agentUrl: input.agentUrl,
                     mode: input.mode,
                     limit: input.limit,
@@ -731,6 +734,7 @@ export function createToolDefinitions(
                 brief: delegationBrief,
                 message: input.message,
                 streaming: input.streaming,
+                idempotencyKey: input.idempotencyKey,
                 agentUrl: input.agentUrl,
                 mode: input.mode,
                 limit: input.limit,
@@ -798,6 +802,31 @@ export function createToolDefinitions(
                 ? { error: planResult.error }
                 : planResult.value
               : undefined,
+          },
+        );
+      },
+    },
+    {
+      name: 'registryBroker.resumeSession',
+      description: 'Resume a broker chat session and return its route plus history snapshot.',
+      parameters: sessionResumeSchema,
+      annotations: {
+        title: 'Registry Broker Resume Session',
+        readOnlyHint: true,
+      },
+      execute: async (args, context) => {
+        const requestId = context?.requestId ?? randomUUID();
+        const input = sessionResumeSchema.parse(args);
+        logger.info({ requestId, tool: 'registryBroker.resumeSession' }, 'tool.invoke');
+        const session = await service.resumeSession(input.sessionId);
+        logger.info({ requestId, tool: 'registryBroker.resumeSession' }, 'tool.success');
+
+        return resultWithPayload(
+          `Resumed session ${input.sessionId}.`,
+          'registryBroker.resumeSession',
+          {
+            sessionId: input.sessionId,
+            session,
           },
         );
       },

@@ -61,6 +61,7 @@ export const summonSchema = z.object({
   dryRun: z.boolean().default(false),
   message: z.string().min(1).optional(),
   streaming: z.boolean().optional(),
+  idempotencyKey: z.string().min(1).optional(),
   ...filterFields,
   ...delegationBriefFieldsSchema.shape,
   workspace: workspaceContextSchema,
@@ -70,9 +71,14 @@ export const sessionHistorySchema = z.object({
   sessionId: z.string().min(1),
 });
 
+export const sessionResumeSchema = z.object({
+  sessionId: z.string().min(1),
+});
+
 export const chatReadinessSchema = z.object({
   uaid: z.string().min(1).optional(),
   agentUrl: z.string().url().optional(),
+  forceRefresh: z.boolean().optional(),
 });
 
 export const chatRetrySchema = z.object({

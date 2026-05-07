@@ -41,6 +41,7 @@ export interface BrokerService {
   cancelSession(sessionId: string): Promise<unknown>;
   endSession(sessionId: string): Promise<unknown>;
   getHistory(sessionId: string): Promise<unknown>;
+  resumeSession(sessionId: string): Promise<unknown>;
   resolveUaid(uaid: string): Promise<unknown>;
 }
 
@@ -166,6 +167,12 @@ export class RegistryBrokerService implements BrokerService {
 
   getHistory(sessionId: string): Promise<unknown> {
     return this.client.chat.getHistory(sessionId);
+  }
+
+  resumeSession(sessionId: string): Promise<unknown> {
+    return this.client.requestJson(`/chat/session/${encodeURIComponent(sessionId)}/resume`, {
+      method: 'GET',
+    });
   }
 
   resolveUaid(uaid: string): Promise<unknown> {
