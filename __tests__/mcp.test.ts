@@ -64,6 +64,12 @@ function createService() {
         candidate: {
           uaid: 'uaid:test-agent',
           label: 'Test Agent',
+          verified: true,
+          agent: {
+            registry: 'hashgraph-online',
+            trustScore: 96,
+            communicationSupported: true,
+          },
         },
       },
       opportunities: [
@@ -74,6 +80,12 @@ function createService() {
             {
               uaid: 'uaid:test-agent',
               label: 'Test Agent',
+              verified: true,
+              agent: {
+                registry: 'hashgraph-online',
+                trustScore: 96,
+                communicationSupported: true,
+              },
             },
           ],
         },
@@ -139,6 +151,8 @@ describe('registry broker mcp tools', () => {
 
     const text = result.content.map((entry) => entry.text).join('\n');
     expect(text).toContain('Test Agent');
+    expect(text).toContain('trust 96');
+    expect(text).toContain('verified');
     expect(service.delegate).toHaveBeenCalledOnce();
     expect(service.agenticSearch).not.toHaveBeenCalled();
     expect(service.search).not.toHaveBeenCalled();
@@ -208,12 +222,24 @@ describe('registry broker mcp tools', () => {
     });
 
     const text = result.content.map((entry) => entry.text).join('\n');
-    expect(text).toContain('Delegation opportunities');
+    expect(text).toMatch(/Delegation opportunities: \d+/);
     expect(text).toContain('Recommendation: delegate-now');
     expect(text).toContain('Recommended candidate: Test Agent');
+    expect(text).toContain('uaid:test-agent');
     expect(text).toContain('Selected opportunity: research-specialist');
     expect(text).toContain('research-specialist');
+    const payload = extractToolPayload(result, 'registryBroker.delegate');
+    expect(payload.nextAction?.type).toBe('summon-agent');
+    expect(payload.nextAction?.tool).toBe('registryBroker.summonAgent');
+    expect(payload.nextAction?.suggestedArgs?.uaid).toBe('uaid:test-agent');
     expect(service.delegate).toHaveBeenCalledOnce();
+    expect(service.sendMessage).not.toHaveBeenCalled();
+    expect(service.checkChatReadiness).not.toHaveBeenCalled();
+    expect(service.retryMessage).not.toHaveBeenCalled();
+    expect(service.cancelSession).not.toHaveBeenCalled();
+    expect(service.endSession).not.toHaveBeenCalled();
+    expect(service.getHistory).not.toHaveBeenCalled();
+    expect(service.resumeSession).not.toHaveBeenCalled();
   });
 
   it('folds structured delegation fields into planner context', async () => {
@@ -288,6 +314,31 @@ describe('registry broker mcp tools', () => {
         type: 'ai-agents',
       },
     });
+  });
+
+  it('passes MCP server type filters to broker discovery', async () => {
+    const service = createService();
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.delegate',
+    );
+
+    expect(tool).toBeDefined();
+
+    await tool!.execute({
+      task: 'Find an MCP server for structured code search.',
+      limit: 2,
+      type: 'mcp-servers',
+      protocols: ['mcp'],
+    });
+
+    expect(service.delegate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filter: {
+          protocols: ['mcp'],
+          type: 'mcp-servers',
+        },
+      }),
+    );
   });
 
   it('sends a message through summonAgent', async () => {
@@ -566,6 +617,118 @@ describe('registry broker mcp tools', () => {
     expect(payload.dryRun).toBe(true);
     expect(payload.dispatchPlan?.[0]?.uaid).toBe('uaid:test-agent');
     expect(payload.dispatchPlan?.[0]?.message).toContain('Must include:');
+  });
+
+  it('stops best-match summon after the first successful dispatch', async () => {
+    const service = createService();
+    service.delegate.mockResolvedValue({
+      recommendation: {
+        action: 'delegate-now',
+        opportunityId: 'implementation-specialist',
+      },
+      opportunities: [
+        {
+          id: 'implementation-specialist',
+          candidates: [
+            { uaid: 'uaid:first-agent', label: 'First Agent' },
+            { uaid: 'uaid:second-agent', label: 'Second Agent' },
+          ],
+        },
+      ],
+    });
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(tool).toBeDefined();
+
+    await tool!.execute({
+      task: 'Ask for a delegated answer.',
+      mode: 'best-match',
+      limit: 2,
+    });
+
+    expect(service.sendMessage).toHaveBeenCalledOnce();
+    expect(service.sendMessage).toHaveBeenCalledWith({
+      uaid: 'uaid:first-agent',
+      message: expect.stringContaining('focused subtask'),
+      streaming: undefined,
+    });
+  });
+
+  it('stops fallback summon on auth-required responses', async () => {
+    const service = createService();
+    service.delegate.mockResolvedValue({
+      opportunities: [
+        {
+          id: 'implementation-specialist',
+          candidates: [
+            { uaid: 'uaid:auth-agent', label: 'Auth Agent' },
+            { uaid: 'uaid:unused-agent', label: 'Unused Agent' },
+          ],
+        },
+      ],
+    });
+    service.sendMessage.mockRejectedValueOnce(
+      new Error('403 authorization required'),
+    );
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      task: 'Ask for a delegated answer.',
+      mode: 'fallback',
+      limit: 2,
+    });
+
+    const text = result.content.map((entry) => entry.text).join('\n');
+    expect(text).toContain('Broker auth is required for chat.');
+    expect(service.sendMessage).toHaveBeenCalledOnce();
+  });
+
+  it('keeps parallel summon results in candidate order despite completion order', async () => {
+    const service = createService();
+    service.delegate.mockResolvedValue({
+      opportunities: [
+        {
+          id: 'implementation-specialist',
+          candidates: [
+            { uaid: 'uaid:slow-agent', label: 'Slow Agent' },
+            { uaid: 'uaid:fast-agent', label: 'Fast Agent' },
+          ],
+        },
+      ],
+    });
+    service.sendMessage.mockImplementation(async (input: { uaid?: string }) => {
+      if (input.uaid === 'uaid:slow-agent') {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      return {
+        sessionId: `session-${input.uaid}`,
+        message: 'delegated answer',
+        deliveryState: 'responded',
+      };
+    });
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      task: 'Ask for a delegated answer.',
+      mode: 'parallel',
+      limit: 2,
+    });
+
+    const payload = extractToolPayload(result, 'registryBroker.summonAgent');
+    expect(payload.enlisted?.map((entry) => entry.uaid)).toEqual([
+      'uaid:slow-agent',
+      'uaid:fast-agent',
+    ]);
   });
 
   it('surfaces broker review-shortlist guidance in findAgents without local reranking drift', async () => {
@@ -902,6 +1065,97 @@ describe('registry broker mcp tools', () => {
       streaming: undefined,
     });
   });
+
+  it('excludes candidates when readiness reports blocked routing', async () => {
+    const service = createService();
+    service.delegate.mockResolvedValue({
+      summary: 'Delegation plan',
+      opportunities: [
+        {
+          id: 'implementation-specialist',
+          candidates: [
+            { uaid: 'uaid:blocked-agent', label: 'Blocked Agent' },
+            { uaid: 'uaid:ready-agent', label: 'Ready Agent' },
+          ],
+        },
+      ],
+    });
+    service.checkChatReadiness.mockImplementation(
+      async (input: { uaid?: string }) =>
+        input.uaid === 'uaid:blocked-agent'
+          ? { status: 'blocked', routeType: 'unavailable' }
+          : { status: 'ready', routeType: 'a2a' },
+    );
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      task: 'Ask for a delegated answer.',
+      mode: 'best-match',
+      limit: 2,
+    });
+
+    const text = result.content.map((entry) => entry.text).join('\n');
+    expect(text).toContain('Ready Agent');
+    expect(text).not.toContain('Blocked Agent — uaid:blocked-agent (ok');
+    expect(service.sendMessage).toHaveBeenCalledWith({
+      uaid: 'uaid:ready-agent',
+      message: expect.stringContaining('focused subtask'),
+      streaming: undefined,
+    });
+  });
+
+  it('distinguishes discovery, dispatch, delivery, and assistant outcomes', async () => {
+    const deliveryService = createService();
+    deliveryService.sendMessage.mockResolvedValueOnce({
+      sessionId: 'session-delivery',
+      message: 'queued',
+      deliveryConfirmation: true,
+      replyMode: 'delivery_only',
+    });
+    const deliveryTool = createToolDefinitions(deliveryService).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(deliveryTool).toBeDefined();
+
+    const deliveryResult = await deliveryTool!.execute({
+      task: 'Ask for a delegated answer.',
+      mode: 'best-match',
+      limit: 1,
+    });
+    const deliveryText = deliveryResult.content.map((entry) => entry.text).join('\n');
+    const deliveryPayload = extractToolPayload(deliveryResult, 'registryBroker.summonAgent');
+    expect(deliveryPayload.strategy).toBe('broker-plan');
+    expect(deliveryPayload.dispatchPlan?.[0]?.uaid).toBe('uaid:test-agent');
+    expect(deliveryPayload.enlisted?.[0]?.outcome).toBe('delivery_confirmed');
+    expect(deliveryText).toContain('delivery_confirmed');
+
+    const assistantService = createService();
+    assistantService.sendMessage.mockResolvedValueOnce({
+      sessionId: 'session-assistant',
+      message: 'assistant answer',
+      deliveryState: 'responded',
+    });
+    const assistantTool = createToolDefinitions(assistantService).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(assistantTool).toBeDefined();
+
+    const assistantResult = await assistantTool!.execute({
+      task: 'Ask for a delegated answer.',
+      mode: 'best-match',
+      limit: 1,
+    });
+    const assistantText = assistantResult.content.map((entry) => entry.text).join('\n');
+    const assistantPayload = extractToolPayload(assistantResult, 'registryBroker.summonAgent');
+    expect(assistantPayload.enlisted?.[0]?.outcome).toBe('assistant_response');
+    expect(assistantText).toContain('assistant_response');
+  });
 });
 
 const extractedToolPayloadSchema = z.object({
@@ -921,6 +1175,16 @@ const extractedToolPayloadSchema = z.object({
         uaid: z.string().optional(),
         agentUrl: z.string().optional(),
         message: z.string().optional(),
+      }),
+    )
+    .optional(),
+  enlisted: z
+    .array(
+      z.object({
+        uaid: z.string(),
+        label: z.string(),
+        status: z.string(),
+        outcome: z.string().optional(),
       }),
     )
     .optional(),

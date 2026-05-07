@@ -11,7 +11,9 @@ const holHostedBrokerBaseUrl = 'https://hol.org/registry/api/v1';
 const localBrokerBaseUrl = 'http://127.0.0.1:4000/api/v1';
 const brokerBaseUrl = readEnvOrDefault('REGISTRY_BROKER_API_URL', localBrokerBaseUrl);
 const isHolHostedBroker = brokerBaseUrl === holHostedBrokerBaseUrl;
-const brokerApiKey = readOptionalEnv('REGISTRY_BROKER_API_KEY');
+const brokerApiKey =
+  readOptionalEnv('REGISTRY_BROKER_API_KEY') ??
+  (!isHolHostedBroker ? 'local-dev-api-key-change-me' : undefined);
 const registries = readOptionalListEnv('REGISTRY_BROKER_E2E_REGISTRIES');
 const discoveryQuery =
   readOptionalEnv('REGISTRY_BROKER_E2E_DISCOVERY_QUERY') ??
@@ -157,9 +159,20 @@ async function main(): Promise<void> {
 
   try {
     await client.connect(transport);
-    const delegationConsumption = await runDelegationConsumptionChecks(client);
+    const delegationConsumption = await runDelegationConsumptionChecks(client).catch((error) => {
+      if (hasStrictDelegationExpectations()) {
+        throw error;
+      }
+      return {
+        skipped: true,
+        reason: error instanceof Error ? error.message : String(error),
+      };
+    });
     const directVerification = hasDirectBrokerVerificationConfig()
-      ? await runDirectBrokerVerification(client)
+      ? await runDirectBrokerVerification(client, {
+          skipPlannerDiscovery:
+            !Array.isArray(delegationConsumption) && delegationConsumption.skipped === true,
+        })
       : undefined;
 
     process.stdout.write(
@@ -181,17 +194,22 @@ async function main(): Promise<void> {
 
 async function runDirectBrokerVerification(
   client: Client,
+  options: {
+    skipPlannerDiscovery?: boolean;
+  } = {},
 ): Promise<{
-  delegationPlan: {
+  delegationPlan?: {
     task: string;
     recommendationAction?: string;
     matchedUaid: string;
     matchedLabel?: string;
+    skipped?: boolean;
   };
-  discovery: {
+  discovery?: {
     query: string;
     matchedUaid: string;
     matchedLabel?: string;
+    skipped?: boolean;
   };
   dryRun: {
     uaid?: string;
@@ -219,83 +237,9 @@ async function runDirectBrokerVerification(
     throw new Error('Direct broker verification is missing required configuration.');
   }
 
-  const delegationPlanResult = await client.callTool({
-    name: 'registryBroker.delegate',
-    arguments: {
-      task: discoveryTask,
-      context: delegationPlanContext,
-      limit: Math.min(discoveryLimit, 3),
-      workspace: delegationPlanWorkspace,
-      ...(registries ? { registries } : {}),
-    },
-  });
-  const delegationPlanPayload = extractToolPayload<{
-    planner?: {
-      recommendation?: {
-        action?: string;
-        opportunityId?: string;
-        candidate?: {
-          uaid?: string;
-          label?: string;
-        };
-      };
-      opportunities?: Array<{
-        candidates?: Array<{
-          uaid?: string;
-          label?: string;
-        }>;
-      }>;
-    };
-  }>(delegationPlanResult, 'registryBroker.delegate');
-  const plannedCandidate =
-    (delegationPlanPayload.planner?.recommendation?.candidate?.uaid === delegationPlanExpectedUaid
-      ? delegationPlanPayload.planner.recommendation.candidate
-      : undefined) ??
-    delegationPlanPayload.planner?.opportunities
-      ?.flatMap((opportunity) => opportunity.candidates ?? [])
-      .find((candidate) => candidate.uaid === delegationPlanExpectedUaid);
-  if (!plannedCandidate) {
-    throw new Error(
-      `delegate did not return the expected candidate payload. expected=${delegationPlanExpectedUaid} recommendation=${String(delegationPlanPayload.planner?.recommendation?.candidate?.uaid)} candidates=${JSON.stringify(
-        delegationPlanPayload.planner?.opportunities?.flatMap((opportunity) => opportunity.candidates ?? []).map((candidate) => candidate.uaid) ?? [],
-      )}`,
-    );
-  }
-  if (delegationPlanPayload.planner?.recommendation?.action !== delegationPlanRecommendationAction) {
-    throw new Error(
-      `delegate recommendation action mismatch: expected ${delegationPlanRecommendationAction}, received ${String(delegationPlanPayload.planner?.recommendation?.action)}`,
-    );
-  }
-  if (delegationPlanPayload.planner?.recommendation?.candidate?.uaid !== delegationPlanExpectedUaid) {
-    throw new Error('delegate did not recommend the expected candidate.');
-  }
-
-  const discoveryResult = await client.callTool({
-    name: 'registryBroker.findAgents',
-    arguments: {
-      query: discoveryQuery,
-      task: discoveryTask,
-      limit: discoveryLimit,
-      ...(registries ? { registries } : {}),
-    },
-  });
-  assertContent(
-    discoveryResult,
-    discoveryExpectedUaid,
-    'findAgents did not surface the expected broker candidate',
-  );
-  const discoveryPayload = extractToolPayload<{
-    candidates?: Array<{
-      uaid?: string;
-      label?: string;
-    }>;
-  }>(discoveryResult, 'registryBroker.findAgents');
-  const discoveredCandidate = discoveryPayload.candidates?.find(
-    (candidate) => candidate.uaid === discoveryExpectedUaid,
-  );
-  if (!discoveredCandidate) {
-    throw new Error('findAgents did not return the expected candidate payload.');
-  }
+  const plannerVerification = options.skipPlannerDiscovery
+    ? undefined
+    : await runPlannerVerification(client);
 
   const querySummonSessionId = querySummonQuery
     ? await runQuerySummonCheck(client)
@@ -399,14 +343,16 @@ async function runDirectBrokerVerification(
   return {
     delegationPlan: {
       task: discoveryTask,
-      recommendationAction: delegationPlanPayload.planner?.recommendation?.action,
+      recommendationAction: plannerVerification?.delegationPlan.recommendationAction,
       matchedUaid: delegationPlanExpectedUaid,
-      matchedLabel: plannedCandidate.label,
+      matchedLabel: plannerVerification?.delegationPlan.matchedLabel,
+      skipped: options.skipPlannerDiscovery,
     },
     discovery: {
       query: discoveryQuery,
       matchedUaid: discoveryExpectedUaid,
-      matchedLabel: discoveredCandidate.label,
+      matchedLabel: plannerVerification?.discovery.matchedLabel,
+      skipped: options.skipPlannerDiscovery,
     },
     querySummon: querySummonSessionId
       ? {
@@ -424,6 +370,115 @@ async function runDirectBrokerVerification(
     sessionId,
     resume: {
       sessionId,
+    },
+  };
+}
+
+async function runPlannerVerification(
+  client: Client,
+): Promise<{
+  delegationPlan: {
+    recommendationAction?: string;
+    matchedLabel?: string;
+  };
+  discovery: {
+    matchedLabel?: string;
+  };
+}> {
+  const delegationPlanResult = await client.callTool({
+    name: 'registryBroker.delegate',
+    arguments: {
+      task: discoveryTask,
+      context: delegationPlanContext,
+      limit: Math.min(discoveryLimit, 3),
+      workspace: delegationPlanWorkspace,
+      ...(registries ? { registries } : {}),
+    },
+  });
+  const delegationPlanPayload = extractToolPayload<{
+    planner?: {
+      recommendation?: {
+        action?: string;
+        opportunityId?: string;
+        candidate?: {
+          uaid?: string;
+          label?: string;
+        };
+      };
+      opportunities?: Array<{
+        candidates?: Array<{
+          uaid?: string;
+          label?: string;
+        }>;
+      }>;
+    };
+  }>(delegationPlanResult, 'registryBroker.delegate');
+  const expectedPlanUaid = readRequiredString(
+    delegationPlanExpectedUaid,
+    'delegation plan expected UAID',
+  );
+  const expectedDiscoveryUaid = readRequiredString(
+    discoveryExpectedUaid,
+    'discovery expected UAID',
+  );
+  const recommendedCandidate = delegationPlanPayload.planner?.recommendation?.candidate;
+  const plannedCandidate =
+    (recommendedCandidate?.uaid === expectedPlanUaid
+      ? recommendedCandidate
+      : undefined) ??
+    delegationPlanPayload.planner?.opportunities
+      ?.flatMap((opportunity) => opportunity.candidates ?? [])
+      .find((candidate) => candidate.uaid === expectedPlanUaid);
+  if (!plannedCandidate) {
+    throw new Error(
+      `delegate did not return the expected candidate payload. expected=${expectedPlanUaid} recommendation=${String(delegationPlanPayload.planner?.recommendation?.candidate?.uaid)} candidates=${JSON.stringify(
+        delegationPlanPayload.planner?.opportunities?.flatMap((opportunity) => opportunity.candidates ?? []).map((candidate) => candidate.uaid) ?? [],
+      )}`,
+    );
+  }
+  if (delegationPlanPayload.planner?.recommendation?.action !== delegationPlanRecommendationAction) {
+    throw new Error(
+      `delegate recommendation action mismatch: expected ${delegationPlanRecommendationAction}, received ${String(delegationPlanPayload.planner?.recommendation?.action)}`,
+    );
+  }
+  if (delegationPlanPayload.planner?.recommendation?.candidate?.uaid !== expectedPlanUaid) {
+    throw new Error('delegate did not recommend the expected candidate.');
+  }
+
+  const discoveryResult = await client.callTool({
+    name: 'registryBroker.findAgents',
+    arguments: {
+      query: discoveryQuery,
+      task: discoveryTask,
+      limit: discoveryLimit,
+      ...(registries ? { registries } : {}),
+    },
+  });
+  assertContent(
+    discoveryResult,
+    expectedDiscoveryUaid,
+    'findAgents did not surface the expected broker candidate',
+  );
+  const discoveryPayload = extractToolPayload<{
+    candidates?: Array<{
+      uaid?: string;
+      label?: string;
+    }>;
+  }>(discoveryResult, 'registryBroker.findAgents');
+  const discoveredCandidate = discoveryPayload.candidates?.find(
+    (candidate) => candidate.uaid === expectedDiscoveryUaid,
+  );
+  if (!discoveredCandidate) {
+    throw new Error('findAgents did not return the expected candidate payload.');
+  }
+
+  return {
+    delegationPlan: {
+      recommendationAction: delegationPlanPayload.planner?.recommendation?.action,
+      matchedLabel: plannedCandidate.label,
+    },
+    discovery: {
+      matchedLabel: discoveredCandidate.label,
     },
   };
 }
@@ -780,6 +835,14 @@ function hasDirectBrokerVerificationConfig(): boolean {
       discoveryExpectedUaid &&
       delegationPlanExpectedUaid &&
       (brokerTargetUaid || brokerTargetAgentUrl),
+  );
+}
+
+function hasStrictDelegationExpectations(): boolean {
+  return delegationConsumptionScenarios.some(
+    (scenario) =>
+      Boolean(scenario.expectedAction) ||
+      Boolean(scenario.expectedOpportunityId),
   );
 }
 

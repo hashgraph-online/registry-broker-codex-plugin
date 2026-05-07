@@ -191,18 +191,37 @@ export async function preferReachableCandidates(
   }
 
   const scanned = candidates.slice(0, scanLimit);
-  const resolutions = await Promise.all(
+  const reachability = await Promise.all(
     scanned.map(async (candidate) => ({
       candidate,
       resolution: await safeInvoke(() => service.resolveUaid(candidate.uaid)),
+      readiness: await safeInvoke(() =>
+        service.checkChatReadiness({ uaid: candidate.uaid }),
+      ),
     })),
   );
 
-  const reachable = resolutions
+  const reachable = reachability
+    .filter(
+      (entry) =>
+        isResolvedCandidate(entry.resolution.value) &&
+        isReadinessRoutable(entry.readiness),
+    )
+    .map((entry) => entry.candidate);
+  const routable = reachability
+    .filter((entry) => isReadinessRoutable(entry.readiness))
+    .map((entry) => entry.candidate);
+  const resolved = reachability
     .filter((entry) => isResolvedCandidate(entry.resolution.value))
     .map((entry) => entry.candidate);
 
-  return (reachable.length > 0 ? reachable : scanned).slice(0, desiredCount);
+  if (reachable.length > 0) {
+    return reachable.slice(0, desiredCount);
+  }
+  if (routable.length > 0) {
+    return routable.slice(0, desiredCount);
+  }
+  return resolved.slice(0, desiredCount);
 }
 
 export async function safeInvoke<T>(callback: () => Promise<T>): Promise<SafeResult<T>> {
@@ -296,4 +315,29 @@ function isResolvedCandidate(value: unknown): boolean {
   }
 
   return typeof value.uaid === 'string' && value.uaid.trim().length > 0;
+}
+
+function isReadinessRoutable(result: SafeResult<unknown>): boolean {
+  if (result.error || !isJsonRecord(result.value)) {
+    return true;
+  }
+
+  const status = typeof result.value.status === 'string'
+    ? result.value.status.trim().toLowerCase()
+    : '';
+  const routeType = typeof result.value.routeType === 'string'
+    ? result.value.routeType.trim().toLowerCase()
+    : '';
+
+  if (
+    status === 'blocked' ||
+    status === 'failed' ||
+    status === 'unavailable' ||
+    routeType === 'blocked' ||
+    routeType === 'unavailable'
+  ) {
+    return false;
+  }
+
+  return true;
 }
