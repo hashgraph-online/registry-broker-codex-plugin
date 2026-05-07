@@ -1108,6 +1108,53 @@ describe('registry broker mcp tools', () => {
     });
   });
 
+  it('fills summon candidate slots from lower reachability tiers', async () => {
+    const service = createService();
+    service.delegate.mockResolvedValue({
+      summary: 'Delegation plan',
+      opportunities: [
+        {
+          id: 'implementation-specialist',
+          candidates: [
+            { uaid: 'uaid:reachable-agent', label: 'Reachable Agent' },
+            { uaid: 'uaid:routable-agent', label: 'Routable Agent' },
+            { uaid: 'uaid:resolved-agent', label: 'Resolved Agent' },
+          ],
+        },
+      ],
+    });
+    service.resolveUaid.mockImplementation(async (uaid: string) => {
+      if (uaid === 'uaid:routable-agent') {
+        throw new Error('resolution unavailable');
+      }
+      return { agent: { uaid } };
+    });
+    service.checkChatReadiness.mockImplementation(async (input: { uaid?: string }) => {
+      if (input.uaid === 'uaid:resolved-agent') {
+        throw new Error('readiness unavailable');
+      }
+      return { status: 'ready', routeType: 'a2a' };
+    });
+    const tool = createToolDefinitions(service).find(
+      (entry) => entry.name === 'registryBroker.summonAgent',
+    );
+
+    expect(tool).toBeDefined();
+
+    const result = await tool!.execute({
+      task: 'Ask for delegated answers.',
+      mode: 'parallel',
+      limit: 3,
+    });
+
+    const payload = extractToolPayload(result, 'registryBroker.summonAgent');
+    expect(payload.enlisted?.map((entry) => entry.uaid)).toEqual([
+      'uaid:reachable-agent',
+      'uaid:routable-agent',
+      'uaid:resolved-agent',
+    ]);
+  });
+
   it('distinguishes discovery, dispatch, delivery, and assistant outcomes', async () => {
     const deliveryService = createService();
     deliveryService.sendMessage.mockResolvedValueOnce({

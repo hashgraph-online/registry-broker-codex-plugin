@@ -9,6 +9,8 @@ import {
 } from './ranking';
 import { isJsonRecord } from './value-readers';
 
+const reachabilityConcurrencyLimit = 8;
+
 type SafeResult<T> = {
   value?: T;
   error?: string;
@@ -191,14 +193,16 @@ export async function preferReachableCandidates(
   }
 
   const scanned = candidates.slice(0, scanLimit);
-  const reachability = await Promise.all(
-    scanned.map(async (candidate) => ({
-      candidate,
-      resolution: await safeInvoke(() => service.resolveUaid(candidate.uaid)),
-      readiness: await safeInvoke(() =>
-        service.checkChatReadiness({ uaid: candidate.uaid }),
-      ),
-    })),
+  const reachability = await mapWithConcurrency(
+    scanned,
+    reachabilityConcurrencyLimit,
+    async (candidate) => {
+      const [resolution, readiness] = await Promise.all([
+        safeInvoke(() => service.resolveUaid(candidate.uaid)),
+        safeInvoke(() => service.checkChatReadiness({ uaid: candidate.uaid })),
+      ]);
+      return { candidate, resolution, readiness };
+    },
   );
 
   const reachable = reachability
@@ -215,13 +219,46 @@ export async function preferReachableCandidates(
     .filter((entry) => isResolvedCandidate(entry.resolution.value))
     .map((entry) => entry.candidate);
 
-  if (reachable.length > 0) {
-    return reachable.slice(0, desiredCount);
-  }
-  if (routable.length > 0) {
-    return routable.slice(0, desiredCount);
-  }
-  return resolved.slice(0, desiredCount);
+  return uniqueCandidates([...reachable, ...routable, ...resolved]).slice(
+    0,
+    desiredCount,
+  );
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  const indexedItems = items.map((item, index) => ({ item, index }));
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), indexedItems.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < indexedItems.length) {
+        const entry = indexedItems[nextIndex];
+        nextIndex += 1;
+        if (entry !== undefined) {
+          results[entry.index] = await mapper(entry.item);
+        }
+      }
+    }),
+  );
+
+  return results;
+}
+
+function uniqueCandidates(candidates: DelegateCandidate[]): DelegateCandidate[] {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    if (seen.has(candidate.uaid)) {
+      return false;
+    }
+    seen.add(candidate.uaid);
+    return true;
+  });
 }
 
 export async function safeInvoke<T>(callback: () => Promise<T>): Promise<SafeResult<T>> {
@@ -318,7 +355,10 @@ function isResolvedCandidate(value: unknown): boolean {
 }
 
 function isReadinessRoutable(result: SafeResult<unknown>): boolean {
-  if (result.error || !isJsonRecord(result.value)) {
+  if (result.error) {
+    return false;
+  }
+  if (!isJsonRecord(result.value)) {
     return true;
   }
 
