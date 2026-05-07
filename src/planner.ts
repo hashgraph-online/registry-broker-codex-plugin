@@ -122,7 +122,7 @@ export function describePlannerSelection(
   if (options?.includeRecommendedCandidate) {
     const candidate = getRecommendedCandidate(selection);
     if (candidate) {
-      lines.push(`Recommended candidate: ${candidate.label}`);
+      lines.push(`Recommended candidate: ${candidate.label} — ${candidate.uaid}`);
     }
   }
 
@@ -130,9 +130,25 @@ export function describePlannerSelection(
 }
 
 export function formatCandidateShortlist(
-  candidates: Array<{ uaid: string; label: string }>,
+  candidates: DelegateCandidate[],
 ): string[] {
-  return candidates.map((candidate, index) => `${index + 1}. ${candidate.label} — ${candidate.uaid}`);
+  return candidates.map((candidate, index) => {
+    const reasons = describeRankingReasons(candidate);
+    return `${index + 1}. ${candidate.label} — ${candidate.uaid}${
+      reasons.length > 0 ? ` (${reasons.join('; ')})` : ''
+    }`;
+  });
+}
+
+function describeRankingReasons(candidate: DelegateCandidate): string[] {
+  return [
+    typeof candidate.trustScore === 'number' ? `trust ${candidate.trustScore}` : undefined,
+    candidate.verified === true ? 'verified' : undefined,
+    candidate.available === true ? 'online' : undefined,
+    candidate.communicationSupported === true ? 'chat-ready' : undefined,
+    candidate.protocol ? `protocol ${candidate.protocol}` : undefined,
+    candidate.registry ? `registry ${candidate.registry}` : undefined,
+  ].filter((value): value is string => value !== undefined);
 }
 
 function getRecommendedCandidate(selection?: PlannerSelection): DelegateCandidate | undefined {

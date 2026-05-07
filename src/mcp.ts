@@ -771,7 +771,9 @@ export function createToolDefinitions(
               : undefined,
             ...enlisted.map(
               (entry, index) =>
-                `${index + 1}. ${entry.label} — ${entry.agentUrl ?? entry.uaid} (${entry.status})`,
+                `${index + 1}. ${entry.label} — ${entry.agentUrl ?? entry.uaid} (${entry.status}${
+                  entry.outcome ? `; ${entry.outcome}` : ''
+                })`,
             ),
           ]
             .filter(Boolean)
