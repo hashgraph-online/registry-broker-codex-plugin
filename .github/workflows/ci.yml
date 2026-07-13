@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload scanner SARIF
         if: always() && hashFiles('codex-plugin-scanner.sarif') != ''
-        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225
+        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9
         with:
           sarif_file: codex-plugin-scanner.sarif
           category: codex-plugin-scanner
