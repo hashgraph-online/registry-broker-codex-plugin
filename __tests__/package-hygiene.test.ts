@@ -6,7 +6,7 @@ const projectRoot = path.resolve(__dirname, '..');
 
 describe('package hygiene', () => {
   const scannerActionRef =
-    'hashgraph-online/codex-plugin-scanner/action@f1757d75f68c97afb4622d6d90f65a00f55c59ea';
+    'hashgraph-online/codex-plugin-scanner/action@c9983aaef2fad3ab1b11d4f1fd634cda316802fb';
 
   it('ships publishable interface metadata and a codex ignore file', () => {
     const pluginManifest = JSON.parse(
