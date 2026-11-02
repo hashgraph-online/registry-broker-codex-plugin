@@ -12,7 +12,6 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "types": ["node", "vitest/globals"],
-    "baseUrl": ".",
     "outDir": "dist"
   },
   "include": ["src/**/*.ts", "scripts/**/*.ts", "__tests__/**/*.ts", "tsup.config.ts"],
