@@ -54,7 +54,7 @@
     "@hol-org/rb-client": "^0.1.184",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "fastmcp": "^4.23.8",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "pnpm": {
     "overrides": {
